@@ -78,6 +78,61 @@ fn get_commit_image_diff(path: String, hash: String, file: String) -> Result<git
     git::get_commit_image_diff(&path, &hash, &file)
 }
 
+#[tauri::command]
+fn get_workdir_status(path: String) -> Result<git::WorkdirStatus, String> {
+    git::get_workdir_status(&path)
+}
+
+#[tauri::command]
+fn get_staged_file_diff(path: String, file: String) -> Result<String, String> {
+    git::get_staged_file_diff(&path, &file)
+}
+
+#[tauri::command]
+fn stage_file(path: String, file: String) -> Result<(), String> {
+    git::stage_file(&path, &file)
+}
+
+#[tauri::command]
+fn unstage_file(path: String, file: String) -> Result<(), String> {
+    git::unstage_file(&path, &file)
+}
+
+#[tauri::command]
+fn discard_file(path: String, file: String) -> Result<(), String> {
+    git::discard_file(&path, &file)
+}
+
+#[tauri::command]
+fn stage_all(path: String) -> Result<(), String> {
+    git::stage_all(&path)
+}
+
+#[tauri::command]
+fn git_commit(path: String, message: String) -> Result<(), String> {
+    git::git_commit(&path, &message)
+}
+
+#[tauri::command]
+fn get_branches(path: String) -> Result<Vec<git::BranchInfo>, String> {
+    git::get_branches(&path)
+}
+
+#[tauri::command]
+fn switch_branch(path: String, branch: String) -> Result<(), String> {
+    git::switch_branch(&path, &branch)
+}
+
+#[tauri::command]
+fn create_branch(path: String, branch: String) -> Result<(), String> {
+    git::create_branch(&path, &branch)
+}
+
+#[tauri::command]
+fn open_url(url: String) {
+    let _ = std::process::Command::new("open").arg(&url).spawn();
+}
+
 // ── App entry point ───────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -97,6 +152,17 @@ pub fn run() {
             get_commit_files,
             get_commit_file_diff,
             get_commit_image_diff,
+            get_workdir_status,
+            get_staged_file_diff,
+            stage_file,
+            unstage_file,
+            discard_file,
+            stage_all,
+            git_commit,
+            get_branches,
+            switch_branch,
+            create_branch,
+            open_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running vibeterm");

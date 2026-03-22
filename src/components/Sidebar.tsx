@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useTabStore, Tab, TabType } from "../store/tabStore";
+import BranchPicker from "./BranchPicker";
 
 const TYPE_ICONS: Record<TabType, string> = {
   project: "◈",
@@ -14,6 +16,8 @@ function TabItem({ tab, isActive }: { tab: Tab; isActive: boolean }) {
   const { setActiveTab, removeTab, updateTab } = useTabStore();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(tab.alias);
+  const [branchAnchor, setBranchAnchor] = useState<DOMRect | null>(null);
+  const branchBtnRef = useRef<HTMLButtonElement>(null);
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -66,16 +70,20 @@ function TabItem({ tab, isActive }: { tab: Tab; isActive: boolean }) {
           </span>
         )}
 
-        {/* Status dot */}
-        <span
-          className={`w-2 h-2 rounded-full flex-shrink-0 ${
-            tab.status === "running"
-              ? "bg-green-400"
-              : tab.status === "error"
-              ? "bg-red-400"
-              : "bg-zinc-600"
-          }`}
-        />
+        {/* Activity / status indicator */}
+        {tab.hasActivity ? (
+          <span className="w-2 h-2 rounded-full flex-shrink-0 bg-blue-400 animate-pulse" title="New activity" />
+        ) : (
+          <span
+            className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              tab.status === "running"
+                ? "bg-green-400"
+                : tab.status === "error"
+                ? "bg-red-400"
+                : "bg-zinc-600"
+            }`}
+          />
+        )}
 
         {/* Remove button */}
         <button
@@ -92,18 +100,65 @@ function TabItem({ tab, isActive }: { tab: Tab; isActive: boolean }) {
       {/* Git + path row */}
       <div className="flex items-center gap-2 mt-1 ml-7">
         {tab.git && (
-          <span
-            className={`text-xs font-mono ${
-              tab.git.isDirty ? "text-yellow-400" : "text-green-400"
+          <button
+            ref={branchBtnRef}
+            className={`text-xs font-mono truncate max-w-[7rem] hover:underline underline-offset-2 transition-colors ${
+              tab.git.isDirty ? "text-yellow-400 hover:text-yellow-300" : "text-green-400 hover:text-green-300"
             }`}
+            title="Switch branch"
+            onClick={(e) => {
+              e.stopPropagation();
+              setBranchAnchor(branchBtnRef.current!.getBoundingClientRect());
+            }}
           >
-            {tab.git.branch}
-          </span>
+            ⎇ {tab.git.branch}
+          </button>
         )}
         <span className="text-xs text-zinc-500 font-mono truncate">
           {shortPath}
         </span>
       </div>
+
+      {/* Branch picker */}
+      {branchAnchor && tab.git && (
+        <BranchPicker
+          repoPath={tab.path}
+          anchorRect={branchAnchor}
+          onClose={() => setBranchAnchor(null)}
+          onSwitched={() => {
+            invoke<import("../store/tabStore").GitStatus>("get_git_status", { path: tab.path })
+              .then((git) => updateTab(tab.id, { git }))
+              .catch(() => {});
+          }}
+        />
+      )}
+
+      {/* Detected server port */}
+      {tab.detectedPort && (
+        <div className="flex items-center gap-1.5 mt-1.5 ml-7">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 animate-pulse" />
+          <button
+            className="text-[11px] font-mono text-green-400 hover:text-green-300 transition-colors truncate"
+            title={`Open ${tab.detectedPort}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              invoke("open_url", { url: tab.detectedPort });
+            }}
+          >
+            {tab.detectedPort.replace(/^https?:\/\//, "")}
+          </button>
+          <button
+            className="ml-auto text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors flex-shrink-0"
+            title="Dismiss"
+            onClick={(e) => {
+              e.stopPropagation();
+              updateTab(tab.id, { detectedPort: null });
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

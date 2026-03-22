@@ -2,6 +2,7 @@ import { useTabStore } from "../store/tabStore";
 import TerminalView from "./TerminalView";
 import GitDiffPanel from "./GitDiffPanel";
 import GitHistoryPanel from "./GitHistoryPanel";
+import ChangesPanel from "./ChangesPanel";
 
 const PANEL_TABS = [
   { id: "terminal", label: "Terminal", icon: "⊡" },
@@ -66,8 +67,8 @@ export default function MainPanel() {
         <div className={activePanelTab === "diff" ? "block h-full" : "hidden"}>
           <GitDiffPanel tabId={activeTab.id} />
         </div>
-        <div className={activePanelTab === "changes" ? "block h-full overflow-auto" : "hidden"}>
-          <div className="p-4 text-zinc-500 text-sm">Changes panel — próximamente</div>
+        <div className={activePanelTab === "changes" ? "block h-full" : "hidden"}>
+          <ChangesPanel tabId={activeTab.id} />
         </div>
         <div className={activePanelTab === "history" ? "block h-full" : "hidden"}>
           <GitHistoryPanel tabId={activeTab.id} />

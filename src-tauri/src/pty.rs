@@ -33,6 +33,10 @@ pub fn create_session(
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
+    // Kill any existing session with this id before creating a new one.
+    // Guards against double-mount scenarios (e.g. React dev double-effect).
+    kill_session(&tab_id);
+
     let cwd = expand_home(&cwd);
 
     let pty_system = native_pty_system();
@@ -52,6 +56,10 @@ pub fn create_session(
     for (k, v) in std::env::vars() {
         cmd.env(k, v);
     }
+    // Override terminal type so TUI apps (claude, vim, htop…) know they're
+    // in a full-featured xterm-compatible terminal with 24-bit color.
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
 
     // Spawn shell on slave side — must happen before taking reader/writer
     let _child = pair
@@ -74,6 +82,7 @@ pub fn create_session(
     // Reader thread: stream PTY output → frontend via Tauri event
     thread::spawn(move || {
         let mut buf = [0u8; 4096];
+        let mut seen_urls = std::collections::HashSet::<String>::new();
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
@@ -82,6 +91,12 @@ pub fn create_session(
                     // Detect OSC 7 (shell CWD notification): ESC ] 7 ; file://host/path BEL|ST
                     if let Some(path) = extract_osc7_path(&data) {
                         let _ = app.emit(&format!("cwd-changed-{}", tab_id_reader), path);
+                    }
+                    // Detect local server URLs (e.g. http://localhost:3000)
+                    if let Some(url) = extract_local_url(&data) {
+                        if seen_urls.insert(url.clone()) {
+                            let _ = app.emit(&format!("port-detected-{}", tab_id_reader), url);
+                        }
                     }
                     let _ = app.emit(&format!("pty-output-{}", tab_id_reader), data);
                 }
@@ -151,6 +166,41 @@ fn extract_osc7_path(data: &str) -> Option<String> {
         // Strip hostname (everything before the first '/')
         if let Some(slash) = without_scheme.find('/') {
             return Some(without_scheme[slash..].to_string());
+        }
+    }
+    None
+}
+
+/// Extract a local server URL from terminal output.
+/// Matches http(s)://localhost:PORT and http(s)://127.0.0.1:PORT patterns
+/// emitted by common dev servers (Vite, Next.js, CRA, Express, Django, etc.).
+fn extract_local_url(data: &str) -> Option<String> {
+    let prefixes: &[&str] = &[
+        "http://localhost:",
+        "https://localhost:",
+        "http://127.0.0.1:",
+        "https://127.0.0.1:",
+        "http://0.0.0.0:",
+        "https://0.0.0.0:",
+    ];
+
+    for prefix in prefixes {
+        if let Some(pos) = data.find(prefix) {
+            let rest = &data[pos..];
+            // URL ends at whitespace, control chars, or common delimiters
+            let end = rest
+                .find(|c: char| c.is_whitespace() || c == '\x1b' || c == '\x07' || c == '"' || c == '\'' || c == ')')
+                .unwrap_or(rest.len());
+            let raw = rest[..end].trim_end_matches(|c| c == '/' || c == '.');
+            // Validate there's a port digit after the prefix
+            if raw.len() <= prefix.len() {
+                continue;
+            }
+            // Normalize 0.0.0.0 → localhost
+            let url = raw
+                .replace("//0.0.0.0:", "//localhost:")
+                .replace("//127.0.0.1:", "//localhost:");
+            return Some(url);
         }
     }
     None

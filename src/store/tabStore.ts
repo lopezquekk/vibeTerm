@@ -22,6 +22,8 @@ export interface Tab {
   status: TabStatus;
   git: GitStatus | null;
   sessionId: string | null;
+  detectedPort: string | null;
+  hasActivity: boolean;
 }
 
 export type SidebarMode = "docked" | "floating" | "hidden";
@@ -41,7 +43,7 @@ interface TabStore {
 }
 
 function generateId() {
-  return Math.random().toString(36).slice(2, 10);
+  return crypto.randomUUID();
 }
 
 export const useTabStore = create<TabStore>()(
@@ -62,6 +64,8 @@ export const useTabStore = create<TabStore>()(
           status: "idle",
           git: null,
           sessionId: null,
+          detectedPort: null,
+          hasActivity: false,
         };
         set((s) => ({
           tabs: [...s.tabs, tab],
@@ -77,7 +81,11 @@ export const useTabStore = create<TabStore>()(
           return { tabs, activeTabId };
         }),
 
-      setActiveTab: (id) => set({ activeTabId: id }),
+      setActiveTab: (id) =>
+        set((s) => ({
+          activeTabId: id,
+          tabs: s.tabs.map((t) => (t.id === id ? { ...t, hasActivity: false } : t)),
+        })),
 
       updateTab: (id, patch) =>
         set((s) => ({
@@ -99,7 +107,7 @@ export const useTabStore = create<TabStore>()(
     {
       name: "vibeterm-workspace",
       partialize: (s) => ({
-        tabs: s.tabs.map((t) => ({ ...t, sessionId: null, git: null })),
+        tabs: s.tabs.map((t) => ({ ...t, sessionId: null, git: null, detectedPort: null, hasActivity: false })),
         activeTabId: s.activeTabId,
         sidebarMode: s.sidebarMode,
       }),

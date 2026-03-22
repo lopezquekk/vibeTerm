@@ -340,6 +340,184 @@ pub fn get_commit_image_diff(repo_path: &str, hash: &str, file: &str) -> Result<
     Ok(ImageDiff { before, after })
 }
 
+/// Returns the main worktree path if `path` is inside a linked worktree, or None otherwise.
+pub fn get_worktree_main_path(path: &str) -> Option<String> {
+    let out = Command::new("git")
+        .args(["-C", path, "worktree", "list", "--porcelain"])
+        .output()
+        .ok()?;
+
+    if !out.status.success() {
+        return None;
+    }
+
+    let output = String::from_utf8_lossy(&out.stdout);
+    let worktrees: Vec<String> = output
+        .lines()
+        .filter_map(|l| l.strip_prefix("worktree ").map(|p| p.trim().to_string()))
+        .collect();
+
+    // Need a main + at least one linked worktree
+    if worktrees.len() < 2 {
+        return None;
+    }
+
+    let main = worktrees[0].clone();
+    let canonical_path = std::fs::canonicalize(path).ok()?;
+
+    for linked in &worktrees[1..] {
+        let canonical_linked = std::fs::canonicalize(linked).ok()?;
+        if canonical_path.starts_with(&canonical_linked) {
+            return Some(main);
+        }
+    }
+
+    None
+}
+
+// ── Staging / commit ──────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct WorkdirStatus {
+    pub staged: Vec<ChangedFile>,
+    pub unstaged: Vec<ChangedFile>,
+}
+
+// ── Branch management ─────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct BranchInfo {
+    pub name: String,
+    pub is_current: bool,
+}
+
+pub fn get_branches(repo_path: &str) -> Result<Vec<BranchInfo>, String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "branch"])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !out.status.success() {
+        return Ok(vec![]);
+    }
+
+    let branches = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|line| {
+            let is_current = line.starts_with("* ");
+            let name = line
+                .trim_start_matches("* ")
+                .trim_start_matches("  ")
+                .trim()
+                .to_string();
+            if name.is_empty() { None } else { Some(BranchInfo { name, is_current }) }
+        })
+        .collect();
+
+    Ok(branches)
+}
+
+pub fn switch_branch(repo_path: &str, branch: &str) -> Result<(), String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "switch", branch])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
+}
+
+pub fn create_branch(repo_path: &str, branch: &str) -> Result<(), String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "switch", "-c", branch])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
+}
+
+pub fn get_workdir_status(repo_path: &str) -> Result<WorkdirStatus, String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "status", "--porcelain"])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    let mut staged: Vec<ChangedFile> = Vec::new();
+    let mut unstaged: Vec<ChangedFile> = Vec::new();
+
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        if line.len() < 3 {
+            continue;
+        }
+        let x = line.chars().nth(0).unwrap_or(' ');
+        let y = line.chars().nth(1).unwrap_or(' ');
+        let raw = line[3..].trim();
+        let path = if raw.contains(" -> ") {
+            raw.split(" -> ").last().unwrap_or(raw).to_string()
+        } else {
+            raw.to_string()
+        };
+
+        // Staged: index column is not space/untracked
+        if x != ' ' && x != '?' {
+            staged.push(ChangedFile { path: path.clone(), status: x.to_string() });
+        }
+
+        // Unstaged: worktree column is not space, or untracked (??)
+        if y != ' ' {
+            let status = if x == '?' && y == '?' { "??".to_string() } else { y.to_string() };
+            unstaged.push(ChangedFile { path, status });
+        }
+    }
+
+    Ok(WorkdirStatus { staged, unstaged })
+}
+
+pub fn get_staged_file_diff(repo_path: &str, file: &str) -> Result<String, String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "diff", "--cached", "--unified=4", "--", file])
+        .output()
+        .map_err(|e| e.to_string())?;
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+pub fn stage_file(repo_path: &str, file: &str) -> Result<(), String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "add", "--", file])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
+}
+
+pub fn unstage_file(repo_path: &str, file: &str) -> Result<(), String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "restore", "--staged", "--", file])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
+}
+
+pub fn discard_file(repo_path: &str, file: &str) -> Result<(), String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "restore", "--", file])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
+}
+
+pub fn stage_all(repo_path: &str) -> Result<(), String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "add", "-A"])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
+}
+
+pub fn git_commit(repo_path: &str, message: &str) -> Result<(), String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "commit", "-m", message])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
+}
+
 pub fn get_file_diff(repo_path: &str, file: &str) -> Result<String, String> {
     // diff vs HEAD includes both staged and unstaged changes against the last commit
     let out = Command::new("git")
