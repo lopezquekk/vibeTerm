@@ -298,6 +298,7 @@ remote_server::start_remote_server,
 remote_server::stop_remote_server,
 remote_server::get_remote_server_status,
 remote_server::regenerate_remote_token,
+remote_server::add_remote_allowed_path,
 ```
 
 ---
