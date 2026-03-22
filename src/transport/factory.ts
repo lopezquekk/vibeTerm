@@ -1,6 +1,16 @@
 // src/transport/factory.ts
 import { TauriTransport } from "./tauri";
+import { WebSocketTransport } from "./websocket";
+import { initToken } from "./token";
 import type { Transport } from "./types";
 
-// WebSocketTransport added in Task 12
-export const transport: Transport = new TauriTransport();
+const isTauri = typeof (window as any).__TAURI__ !== "undefined";
+
+function createTransport(): Transport {
+  if (isTauri) return new TauriTransport();
+  const token = initToken();
+  if (!token) console.warn("VibeTerm: no auth token — scan the QR code to connect.");
+  return new WebSocketTransport(token ?? "");
+}
+
+export const transport: Transport = createTransport();
