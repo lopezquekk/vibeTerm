@@ -12,6 +12,19 @@ const TYPE_ICONS: Record<TabType, string> = {
   database: "⊕",
 };
 
+// Left-border accent color per tab type
+const TYPE_COLORS: Record<TabType, string> = {
+  project:  "#3b82f6", // blue
+  frontend: "#a855f7", // purple
+  backend:  "#4ade80", // green
+  infra:    "#f97316", // orange
+  logs:     "#fbbf24", // yellow
+  database: "#22d3ee", // cyan
+};
+
+// Worktree tabs use violet dashed border
+const WORKTREE_COLOR = "#8b5cf6";
+
 // Returns tabs in display order: worktree children appear right after their parent.
 function groupedTabs(tabs: Tab[]): { tab: Tab; isWorktree: boolean }[] {
   const result: { tab: Tab; isWorktree: boolean }[] = [];
@@ -75,15 +88,14 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
 
   const shortPath = tab.path.replace(/^\/Users\/[^/]+/, "~");
 
+  const borderColor = isWorktree ? WORKTREE_COLOR : TYPE_COLORS[tab.type];
+
   return (
     <div
-      className={`group flex flex-col px-3 py-2.5 cursor-pointer rounded-md mb-1 transition-colors ${
-        isWorktree ? "mx-0 ml-5 border-l-2 border-accent/30 rounded-l-none pl-2" : "mx-2"
-      } ${
-        isActive
-          ? "bg-sidebar-active border border-border"
-          : "hover:bg-sidebar-hover border border-transparent"
-      } ${isWorktree && isActive ? "border-l-accent/70" : ""}`}
+      style={{ borderColor }}
+      className={`group flex flex-col px-3 py-2.5 cursor-pointer rounded-md mb-1 transition-colors border
+        ${isWorktree ? "ml-4 mr-2 border-dashed" : "mx-2"}
+        ${isActive ? "bg-sidebar-active" : "hover:bg-sidebar-hover"}`}
       onClick={() => !editing && setActiveTab(tab.id)}
       onDoubleClick={handleDoubleClick}
     >

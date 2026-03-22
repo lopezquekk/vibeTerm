@@ -12,6 +12,8 @@ vibeTerm organizes your shell sessions into **named contexts** — like browser 
 
 Designed for workflows where you're constantly switching between a main repo, feature branches, and git worktrees.
 
+![vibeTerm — Git History panel](screen1.png)
+
 ---
 
 ## Features
@@ -93,13 +95,21 @@ Each context has four panels at the top of the main area:
 
 **Git History** — full commit log. Select a commit to browse its changed files and diffs. `LOCAL` badge (yellow) marks commits not yet pushed to remote.
 
-**Changes** — staging area and commit UI *(coming soon)*.
+**Changes** — staging area and commit UI. Stage/unstage individual files, discard changes, and commit directly from the app.
 
 ### Git worktree grouping
 
-If you open contexts for both a main repo and one of its linked worktrees, vibeTerm detects the relationship automatically and moves the worktree context to appear directly below its parent in the sidebar — indented with a left border and an `⎇` branch icon.
+If you open contexts for both a main repo and one of its linked worktrees, vibeTerm detects the relationship automatically and moves the worktree context to appear directly below its parent in the sidebar — indented with a dashed border and an `⎇` branch icon.
 
 No configuration needed; detection happens via `git worktree list` on session start and on every directory change.
+
+![Worktree grouping in the sidebar](screen2.png)
+
+### Changes panel
+
+Browse your staged and unstaged changes, stage or discard individual files, and commit — all without leaving the app.
+
+![Changes panel with inline diff](screen3.png)
 
 ---
 
