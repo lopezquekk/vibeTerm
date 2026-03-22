@@ -24,15 +24,19 @@ export interface Tab {
   sessionId: string | null;
 }
 
+export type SidebarMode = "docked" | "floating" | "hidden";
+
 interface TabStore {
   tabs: Tab[];
   activeTabId: string | null;
   activePanelTab: "terminal" | "diff" | "changes" | "history";
+  sidebarMode: SidebarMode;
   addTab: (opts: { alias: string; path: string; type?: TabType }) => void;
   removeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   updateTab: (id: string, patch: Partial<Tab>) => void;
   setActivePanelTab: (tab: TabStore["activePanelTab"]) => void;
+  setSidebarMode: (mode: SidebarMode) => void;
   reorderTabs: (from: number, to: number) => void;
 }
 
@@ -46,6 +50,7 @@ export const useTabStore = create<TabStore>()(
       tabs: [],
       activeTabId: null,
       activePanelTab: "terminal",
+      sidebarMode: "docked",
 
       addTab: ({ alias, path, type = "project" }) => {
         const id = generateId();
@@ -81,6 +86,8 @@ export const useTabStore = create<TabStore>()(
 
       setActivePanelTab: (tab) => set({ activePanelTab: tab }),
 
+      setSidebarMode: (mode) => set({ sidebarMode: mode }),
+
       reorderTabs: (from, to) =>
         set((s) => {
           const tabs = [...s.tabs];
@@ -94,6 +101,7 @@ export const useTabStore = create<TabStore>()(
       partialize: (s) => ({
         tabs: s.tabs.map((t) => ({ ...t, sessionId: null, git: null })),
         activeTabId: s.activeTabId,
+        sidebarMode: s.sidebarMode,
       }),
     }
   )

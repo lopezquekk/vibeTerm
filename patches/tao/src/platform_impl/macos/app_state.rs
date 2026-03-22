@@ -73,14 +73,10 @@ impl<T> EventLoopHandler<T> {
       RefMut<'_, dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
     ),
   {
-    eprintln!("[vibeterm-debug] with_callback: upgrade strong_count check");
     if let Some(callback) = self.callback.upgrade() {
-      eprintln!("[vibeterm-debug] with_callback: upgrade succeeded, calling f");
       let callback = callback.borrow_mut();
       (f)(self, callback);
-      eprintln!("[vibeterm-debug] with_callback: f returned");
     } else {
-      eprintln!("[vibeterm-debug] with_callback: PANIC - callback Rc was dropped!");
       panic!(
         "Tried to dispatch an event, but the event loop that \
                 owned the event handler callback seems to be destroyed"
@@ -100,16 +96,13 @@ impl<T> Debug for EventLoopHandler<T> {
 
 impl<T> EventHandler for EventLoopHandler<T> {
   fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
-    eprintln!("[vibeterm-debug] EventLoopHandler::handle_nonuser_event: entering with_callback");
     self.with_callback(|this, mut callback| {
-      eprintln!("[vibeterm-debug] EventLoopHandler::handle_nonuser_event: about to call Tauri callback");
       if let ControlFlow::ExitWithCode(code) = *control_flow {
         let dummy = &mut ControlFlow::ExitWithCode(code);
         (callback)(event.userify(), &this.window_target, dummy);
       } else {
         (callback)(event.userify(), &this.window_target, control_flow);
       }
-      eprintln!("[vibeterm-debug] EventLoopHandler::handle_nonuser_event: Tauri callback returned OK");
     });
   }
 
@@ -208,20 +201,13 @@ impl Handler {
   }
 
   fn handle_nonuser_event(&self, wrapper: EventWrapper) {
-    eprintln!("[vibeterm-debug] handle_nonuser_event: locking callback");
-    let mut lock = self.callback.lock().unwrap();
-    eprintln!("[vibeterm-debug] handle_nonuser_event: lock acquired, is_some={}", lock.is_some());
-    if let Some(ref mut callback) = *lock {
-      eprintln!("[vibeterm-debug] handle_nonuser_event: dispatching to EventLoopHandler");
+    if let Some(ref mut callback) = *self.callback.lock().unwrap() {
       match wrapper {
         EventWrapper::StaticEvent(event) => {
           callback.handle_nonuser_event(event, &mut self.control_flow.lock().unwrap())
         }
         EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
       }
-      eprintln!("[vibeterm-debug] handle_nonuser_event: returned from EventLoopHandler");
-    } else {
-      eprintln!("[vibeterm-debug] handle_nonuser_event: callback is None, skipping");
     }
   }
 
@@ -296,17 +282,12 @@ impl AppState {
   }
 
   pub fn launched(app_delegate: &Object) {
-    eprintln!("[vibeterm-debug] launched: step 1 apply_activation_policy");
     apply_activation_policy(app_delegate);
 
-    eprintln!("[vibeterm-debug] launched: step 2 MainThreadMarker");
     unsafe {
       let mtm = MainThreadMarker::new().unwrap();
-      eprintln!("[vibeterm-debug] launched: step 3 NSApp");
       let ns_app = NSApp(mtm);
-      eprintln!("[vibeterm-debug] launched: step 4 window_activation_hack");
       window_activation_hack(&ns_app);
-      eprintln!("[vibeterm-debug] launched: step 5 activateIgnoringOtherApps");
       let ignore = get_aux_state_mut(app_delegate).activate_ignoring_other_apps;
       #[allow(deprecated)]
       ns_app.activateIgnoringOtherApps(ignore);
@@ -316,17 +297,12 @@ impl AppState {
         set_dock_visibility(app_delegate, dock_visible);
       }
     };
-    eprintln!("[vibeterm-debug] launched: step 6 HANDLER.set_ready");
     HANDLER.set_ready();
-    eprintln!("[vibeterm-debug] launched: step 7 waker.start");
     HANDLER.waker().start();
-    eprintln!("[vibeterm-debug] launched: step 8 set_in_callback");
     HANDLER.set_in_callback(true);
-    eprintln!("[vibeterm-debug] launched: step 9 handle_nonuser_event NewEvents::Init");
     HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
       StartCause::Init,
     )));
-    eprintln!("[vibeterm-debug] launched: step 10 done");
     HANDLER.set_in_callback(false);
   }
 

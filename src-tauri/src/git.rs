@@ -102,3 +102,261 @@ pub fn get_git_diff(path: &str) -> Result<String, String> {
 
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
+
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct ChangedFile {
+    pub path: String,
+    /// Single-letter status from git status --porcelain (M, A, D, R, ?, ...)
+    pub status: String,
+}
+
+pub fn get_changed_files(repo_path: &str) -> Result<Vec<ChangedFile>, String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "status", "--porcelain"])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    let mut files = Vec::new();
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        if line.len() < 3 {
+            continue;
+        }
+        let xy = line[..2].trim().to_string();
+        let raw_path = line[3..].trim();
+        // Renames: "old -> new"
+        let path = if raw_path.contains(" -> ") {
+            raw_path.split(" -> ").last().unwrap_or(raw_path).to_string()
+        } else {
+            raw_path.to_string()
+        };
+        files.push(ChangedFile { path, status: xy });
+    }
+    Ok(files)
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = Vec::with_capacity((bytes.len() + 2) / 3 * 4);
+    for c in bytes.chunks(3) {
+        let b = [c[0], if c.len() > 1 { c[1] } else { 0 }, if c.len() > 2 { c[2] } else { 0 }];
+        out.push(T[(b[0] >> 2) as usize]);
+        out.push(T[((b[0] & 3) << 4 | b[1] >> 4) as usize]);
+        out.push(if c.len() > 1 { T[((b[1] & 0xf) << 2 | b[2] >> 6) as usize] } else { b'=' });
+        out.push(if c.len() > 2 { T[(b[2] & 0x3f) as usize] } else { b'=' });
+    }
+    String::from_utf8(out).unwrap()
+}
+
+fn mime_for_ext(file: &str) -> &'static str {
+    match file.rsplit('.').next().unwrap_or("").to_lowercase().as_str() {
+        "png"  => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif"  => "image/gif",
+        "webp" => "image/webp",
+        "svg"  => "image/svg+xml",
+        "ico"  => "image/x-icon",
+        "bmp"  => "image/bmp",
+        "tiff" | "tif" => "image/tiff",
+        "avif" => "image/avif",
+        _      => "application/octet-stream",
+    }
+}
+
+#[derive(serde::Serialize)]
+pub struct ImageDiff {
+    pub before: Option<String>, // data URI of HEAD version, None if new file
+    pub after: Option<String>,  // data URI of current version, None if deleted
+}
+
+pub fn get_image_diff(repo_path: &str, file: &str) -> Result<ImageDiff, String> {
+    let mime = mime_for_ext(file);
+
+    // HEAD version via `git show HEAD:<path>`
+    let before = Command::new("git")
+        .args(["-C", repo_path, "show", &format!("HEAD:{}", file)])
+        .output()
+        .ok()
+        .filter(|o| o.status.success() && !o.stdout.is_empty())
+        .map(|o| format!("data:{};base64,{}", mime, base64_encode(&o.stdout)));
+
+    // Current working-tree version
+    let abs = std::path::Path::new(repo_path).join(file);
+    let after = std::fs::read(&abs)
+        .ok()
+        .map(|b| format!("data:{};base64,{}", mime, base64_encode(&b)));
+
+    Ok(ImageDiff { before, after })
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct CommitInfo {
+    pub hash: String,
+    pub short_hash: String,
+    pub author: String,
+    pub date: String,
+    pub message: String,
+    pub is_local: bool, // true = not pushed to any remote
+}
+
+pub fn get_git_log(repo_path: &str) -> Result<Vec<CommitInfo>, String> {
+    // Fetch recent commits with \x01 separator (safe against special chars in messages)
+    let out = Command::new("git")
+        .args([
+            "-C", repo_path,
+            "log", "--format=%H\x01%h\x01%an\x01%ar\x01%s",
+            "-n", "300",
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !out.status.success() {
+        return Ok(vec![]);
+    }
+
+    // Local-only commits: those that are ahead of their upstream.
+    // `@{u}` is the upstream of HEAD; falls back to origin/<branch> if @{u} fails.
+    let local_hashes: std::collections::HashSet<String> = {
+        let try_upstream = Command::new("git")
+            .args(["-C", repo_path, "log", "@{u}..HEAD", "--format=%H"])
+            .output();
+
+        let upstream_ok = try_upstream
+            .as_ref()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        let raw = if upstream_ok {
+            String::from_utf8_lossy(&try_upstream.unwrap().stdout).to_string()
+        } else {
+            // Fallback: try origin/<current-branch>
+            let branch = Command::new("git")
+                .args(["-C", repo_path, "branch", "--show-current"])
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+
+            if branch.is_empty() {
+                String::new()
+            } else {
+                let fb = Command::new("git")
+                    .args(["-C", repo_path, "log",
+                        &format!("origin/{}..HEAD", branch), "--format=%H"])
+                    .output()
+                    .ok()
+                    .filter(|o| o.status.success())
+                    .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+                    .unwrap_or_default();
+                fb
+            }
+        };
+
+        raw.lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect()
+    };
+
+    let mut commits = Vec::new();
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        let parts: Vec<&str> = line.splitn(5, '\x01').collect();
+        if parts.len() < 5 {
+            continue;
+        }
+        let hash = parts[0].trim().to_string();
+        let is_local = local_hashes.contains(&hash);
+        commits.push(CommitInfo {
+            is_local,
+            hash,
+            short_hash: parts[1].trim().to_string(),
+            author: parts[2].trim().to_string(),
+            date: parts[3].trim().to_string(),
+            message: parts[4].trim().to_string(),
+        });
+    }
+    Ok(commits)
+}
+
+pub fn get_commit_files(repo_path: &str, hash: &str) -> Result<Vec<ChangedFile>, String> {
+    let out = Command::new("git")
+        .args([
+            "-C", repo_path,
+            "diff-tree", "--no-commit-id", "-r", "--name-status", hash,
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    let mut files = Vec::new();
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        // Format: "<STATUS>\t<path>"  or  "R<score>\t<old>\t<new>"
+        let mut cols = line.splitn(3, '\t');
+        let status_raw = cols.next().unwrap_or("");
+        let status = status_raw.chars().next().unwrap_or('M').to_string();
+        let path1 = cols.next().unwrap_or("").to_string();
+        let path = cols.next().unwrap_or(&path1).trim().to_string();
+        let path = if path.is_empty() { path1 } else { path };
+        if path.is_empty() {
+            continue;
+        }
+        files.push(ChangedFile { path, status });
+    }
+    Ok(files)
+}
+
+pub fn get_commit_file_diff(repo_path: &str, hash: &str, file: &str) -> Result<String, String> {
+    // `git show` works for all commits including the very first one.
+    // --format="" suppresses the commit header so output starts at the diff.
+    let out = Command::new("git")
+        .args([
+            "-C", repo_path,
+            "show", "--format=", "--unified=4", hash, "--", file,
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+pub fn get_commit_image_diff(repo_path: &str, hash: &str, file: &str) -> Result<ImageDiff, String> {
+    let mime = mime_for_ext(file);
+
+    // Parent version (before this commit). Fails gracefully for initial commit.
+    let before = Command::new("git")
+        .args(["-C", repo_path, "show", &format!("{}^:{}", hash, file)])
+        .output()
+        .ok()
+        .filter(|o| o.status.success() && !o.stdout.is_empty())
+        .map(|o| format!("data:{};base64,{}", mime, base64_encode(&o.stdout)));
+
+    // This commit's version (after).
+    let after = Command::new("git")
+        .args(["-C", repo_path, "show", &format!("{}:{}", hash, file)])
+        .output()
+        .ok()
+        .filter(|o| o.status.success() && !o.stdout.is_empty())
+        .map(|o| format!("data:{};base64,{}", mime, base64_encode(&o.stdout)));
+
+    Ok(ImageDiff { before, after })
+}
+
+pub fn get_file_diff(repo_path: &str, file: &str) -> Result<String, String> {
+    // diff vs HEAD includes both staged and unstaged changes against the last commit
+    let out = Command::new("git")
+        .args(["-C", repo_path, "diff", "HEAD", "--unified=4", "--", file])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    let result = String::from_utf8_lossy(&out.stdout).to_string();
+    if !result.is_empty() {
+        return Ok(result);
+    }
+
+    // Fallback for newly staged files (added but no prior commit, or after git add)
+    let staged = Command::new("git")
+        .args(["-C", repo_path, "diff", "--cached", "--unified=4", "--", file])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    Ok(String::from_utf8_lossy(&staged.stdout).to_string())
+}

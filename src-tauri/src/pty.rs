@@ -79,8 +79,11 @@ pub fn create_session(
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let event = format!("pty-output-{}", tab_id_reader);
-                    let _ = app.emit(&event, data);
+                    // Detect OSC 7 (shell CWD notification): ESC ] 7 ; file://host/path BEL|ST
+                    if let Some(path) = extract_osc7_path(&data) {
+                        let _ = app.emit(&format!("cwd-changed-{}", tab_id_reader), path);
+                    }
+                    let _ = app.emit(&format!("pty-output-{}", tab_id_reader), data);
                 }
             }
         }
@@ -131,6 +134,26 @@ pub fn resize_session(tab_id: &str, cols: u16, rows: u16) -> Result<(), String> 
             .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+/// Extract the filesystem path from an OSC 7 escape sequence if present.
+/// Format: ESC ] 7 ; file://hostname/path BEL  or  ESC ] 7 ; file://hostname/path ESC \
+fn extract_osc7_path(data: &str) -> Option<String> {
+    let marker = "\x1b]7;";
+    let start = data.find(marker)?;
+    let rest = &data[start + marker.len()..];
+    let end = rest
+        .find('\x07')
+        .or_else(|| rest.find("\x1b\\"))
+        .unwrap_or(rest.len());
+    let raw = &rest[..end];
+    if let Some(without_scheme) = raw.strip_prefix("file://") {
+        // Strip hostname (everything before the first '/')
+        if let Some(slash) = without_scheme.find('/') {
+            return Some(without_scheme[slash..].to_string());
+        }
+    }
+    None
 }
 
 pub fn kill_session(tab_id: &str) {

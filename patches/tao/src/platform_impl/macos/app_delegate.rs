@@ -124,30 +124,15 @@ extern "C" fn dealloc(this: &Object, _: Sel) {
 
 extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
   trace!("Triggered `applicationDidFinishLaunching`");
-  // Use objc2::exception::catch to capture ObjC exceptions that otherwise
-  // cause "panic in a function that cannot unwind" through the extern C boundary.
-  let result = unsafe {
-    objc2::exception::catch(std::panic::AssertUnwindSafe(|| {
-      AppState::launched(this);
-    }))
-  };
-  match result {
-    Ok(Ok(())) => {}
-    Ok(Err(exception)) => {
-      eprintln!("[vibeterm-debug] ObjC EXCEPTION in launched: {:?}", exception);
-      std::process::exit(1);
-    }
-    Err(panic) => {
-      let msg = if let Some(s) = panic.downcast_ref::<String>() {
-        s.clone()
-      } else if let Some(s) = panic.downcast_ref::<&str>() {
-        s.to_string()
-      } else {
-        "(unknown rust panic)".to_string()
-      };
-      eprintln!("[vibeterm-debug] Rust PANIC in launched: {}", msg);
-      std::process::exit(1);
-    }
+  // Wrap in objc2::exception::catch so any ObjC exception thrown during startup
+  // (e.g. NSImageCacheException from a malformed icon) prints a useful message
+  // instead of triggering "panic in a function that cannot unwind".
+  let result = objc2::exception::catch(std::panic::AssertUnwindSafe(|| {
+    AppState::launched(this);
+  }));
+  if let Err(exc) = result {
+    eprintln!("vibeTerm: fatal exception during application launch: {:?}", exc);
+    std::process::exit(1);
   }
   trace!("Completed `applicationDidFinishLaunching`");
 }

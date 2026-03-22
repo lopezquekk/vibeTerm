@@ -1,6 +1,7 @@
 import { useTabStore } from "../store/tabStore";
 import TerminalView from "./TerminalView";
 import GitDiffPanel from "./GitDiffPanel";
+import GitHistoryPanel from "./GitHistoryPanel";
 
 const PANEL_TABS = [
   { id: "terminal", label: "Terminal", icon: "⊡" },
@@ -49,17 +50,27 @@ export default function MainPanel() {
 
       {/* Panel content */}
       <div className="flex-1 min-h-0 relative">
-        <div className={activePanelTab === "terminal" ? "block h-full" : "hidden"}>
-          <TerminalView tabId={activeTab.id} path={activeTab.path} />
-        </div>
+        {/* All terminal views are always mounted; CSS controls which one is visible */}
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            className={
+              activePanelTab === "terminal" && tab.id === activeTabId
+                ? "block h-full"
+                : "hidden"
+            }
+          >
+            <TerminalView tabId={tab.id} path={tab.path} />
+          </div>
+        ))}
         <div className={activePanelTab === "diff" ? "block h-full" : "hidden"}>
           <GitDiffPanel tabId={activeTab.id} />
         </div>
         <div className={activePanelTab === "changes" ? "block h-full overflow-auto" : "hidden"}>
           <div className="p-4 text-zinc-500 text-sm">Changes panel — próximamente</div>
         </div>
-        <div className={activePanelTab === "history" ? "block h-full overflow-auto" : "hidden"}>
-          <div className="p-4 text-zinc-500 text-sm">History panel — próximamente</div>
+        <div className={activePanelTab === "history" ? "block h-full" : "hidden"}>
+          <GitHistoryPanel tabId={activeTab.id} />
         </div>
       </div>
     </div>

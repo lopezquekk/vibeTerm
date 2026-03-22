@@ -15,7 +15,8 @@ function TabItem({ tab, isActive }: { tab: Tab; isActive: boolean }) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(tab.alias);
 
-  const handleDoubleClick = () => {
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditing(true);
     setEditValue(tab.alias);
   };
@@ -36,7 +37,7 @@ function TabItem({ tab, isActive }: { tab: Tab; isActive: boolean }) {
           ? "bg-sidebar-active border border-border"
           : "hover:bg-sidebar-hover border border-transparent"
       }`}
-      onClick={() => setActiveTab(tab.id)}
+      onClick={() => !editing && setActiveTab(tab.id)}
       onDoubleClick={handleDoubleClick}
     >
       <div className="flex items-center gap-2">
@@ -108,21 +109,52 @@ function TabItem({ tab, isActive }: { tab: Tab; isActive: boolean }) {
 }
 
 export default function Sidebar() {
-  const { tabs, activeTabId, addTab } = useTabStore();
+  const { tabs, activeTabId, addTab, sidebarMode, setSidebarMode } = useTabStore();
 
   return (
     <div className="flex flex-col w-64 flex-shrink-0 bg-sidebar border-r border-border h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <span className="text-sm font-semibold text-zinc-300 tracking-wide">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-border gap-1">
+        <span className="text-sm font-semibold text-zinc-300 tracking-wide flex-1">
           vibeTerm
         </span>
+
+        {/* New context */}
         <button
           className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors text-lg leading-none"
           onClick={() => addTab({ alias: "New Context", path: "~" })}
           title="New context"
         >
           +
+        </button>
+
+        {/* Pin button — only shown when floating, anchors sidebar to docked */}
+        {sidebarMode === "floating" && (
+          <button
+            className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-accent hover:bg-zinc-700 transition-colors"
+            title="Pin sidebar (⌘\)"
+            onClick={() => setSidebarMode("docked")}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="6.5" y1="1" x2="6.5" y2="8" />
+              <line x1="6.5" y1="12" x2="6.5" y2="10" />
+              <line x1="3" y1="5" x2="10" y2="5" />
+              <line x1="3" y1="5" x2="3" y2="8" />
+              <line x1="10" y1="5" x2="10" y2="8" />
+              <line x1="3" y1="8" x2="10" y2="8" />
+            </svg>
+          </button>
+        )}
+
+        {/* Collapse button — hides the sidebar */}
+        <button
+          className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+          title="Collapse sidebar (⌘\)"
+          onClick={() => setSidebarMode("hidden")}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9,3 5,7 9,11" />
+          </svg>
         </button>
       </div>
 
