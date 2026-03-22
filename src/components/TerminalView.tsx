@@ -14,6 +14,24 @@ interface Props {
 
 const SEARCH_OPTIONS = { caseSensitive: false, incremental: true };
 
+const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+
+// Common control sequences for the mobile toolbar
+const CTRL_KEYS = [
+  { label: "Ctrl+C", seq: "\x03", title: "Interrupt" },
+  { label: "Ctrl+D", seq: "\x04", title: "EOF / exit" },
+  { label: "Ctrl+Z", seq: "\x1a", title: "Suspend" },
+  { label: "Ctrl+L", seq: "\x0c", title: "Clear screen" },
+  { label: "Tab",    seq: "\x09", title: "Autocomplete" },
+  { label: "Ctrl+A", seq: "\x01", title: "Start of line" },
+  { label: "Ctrl+E", seq: "\x05", title: "End of line" },
+  { label: "Ctrl+U", seq: "\x15", title: "Clear line" },
+  { label: "Ctrl+W", seq: "\x17", title: "Delete word" },
+  { label: "↑",      seq: "\x1b[A", title: "Previous command" },
+  { label: "↓",      seq: "\x1b[B", title: "Next command" },
+  { label: "Esc",    seq: "\x1b",   title: "Escape" },
+];
+
 export default function TerminalView({ tabId, path }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -232,8 +250,13 @@ export default function TerminalView({ tabId, path }: Props) {
     termRef.current?.focus();
   };
 
+  const sendKey = (seq: string) => {
+    transport.ptyWrite(tabId, seq);
+    termRef.current?.focus();
+  };
+
   return (
-    <div className="h-full w-full bg-surface p-1 relative">
+    <div className="h-full w-full bg-surface p-1 relative flex flex-col">
       {/* Search bar — floats over the terminal at the top-right */}
       {searchOpen && (
         <div className="absolute top-2 right-3 z-10 flex items-center gap-1 bg-zinc-900 border border-border rounded-md shadow-xl px-2 py-1">
@@ -274,9 +297,25 @@ export default function TerminalView({ tabId, path }: Props) {
         </div>
       )}
 
+      {/* Mobile control bar — shown only in browser (remote access) */}
+      {!IS_TAURI && (
+        <div className="flex-shrink-0 flex items-center gap-1 overflow-x-auto py-1 px-0.5 border-b border-border scrollbar-none">
+          {CTRL_KEYS.map(({ label, seq, title }) => (
+            <button
+              key={label}
+              title={title}
+              onPointerDown={(e) => { e.preventDefault(); sendKey(seq); }}
+              className="flex-shrink-0 px-2.5 py-1 text-[11px] font-mono text-zinc-300 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded border border-zinc-700 select-none touch-manipulation"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* xterm.js measures this inner div — keeping it padding-free ensures
           FitAddon computes the exact available columns. */}
-      <div ref={containerRef} className="h-full w-full" />
+      <div ref={containerRef} className="flex-1 min-h-0 w-full" />
     </div>
   );
 }
