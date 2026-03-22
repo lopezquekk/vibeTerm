@@ -1,27 +1,36 @@
 # vibeTerm
 
-A contextual terminal workspace built for developers who work with multiple projects, git branches, and Claude Code simultaneously.
+**A contextual terminal workspace for developers juggling multiple projects, git branches, and AI coding sessions.**
+
+Built with Tauri 2 (Rust) · React · xterm.js · macOS
 
 ---
 
-## What is vibeTerm?
+## What is it?
 
-vibeTerm is a desktop terminal app (macOS) that organizes your shell sessions into **named contexts** — think of it like browser tabs, but for terminals. Each context keeps its own PTY session alive, tracks the git state of the folder you're in, and lets you inspect diffs and commit history without leaving the app.
+vibeTerm organizes your shell sessions into **named contexts** — like browser tabs, but for terminals. Each context keeps its own PTY session alive in the background, tracks the git state of your current directory in real time, and lets you inspect diffs and commit history without ever leaving the app.
 
-Built with **Tauri 2** (Rust backend) + **React** frontend + **xterm.js**.
+Designed for workflows where you're constantly switching between a main repo, feature branches, and git worktrees.
 
 ---
 
 ## Features
 
-- **Multi-context sidebar** — create named terminal workspaces, switch between them without losing session state
-- **Tab persistence** — all terminal sessions stay alive in the background; switching tabs only changes visibility
-- **Real-time CWD tracking** — the sidebar path and git branch update automatically as you `cd` between folders (via OSC 7)
-- **Git Diff panel** — file browser showing modified/added/deleted files with a GitHub Desktop-style diff viewer (line numbers, +/− gutter)
-- **Git History panel** — full commit log with local vs pushed distinction, per-commit file list, and inline diff viewer
-- **Image diffs** — PNG/JPG/SVG and other image files are shown as before/after previews instead of binary output
-- **Collapsible sidebar** — docked, floating (Arc-style overlay), or hidden with a keyboard shortcut
-- **Tab renaming** — double-click any sidebar tab to rename it
+### Terminal workspace
+- **Named contexts** — create as many shell sessions as you need, each with its own alias, path, and session state
+- **Persistent sessions** — switching contexts never kills the shell; processes keep running, scroll history is preserved
+- **Real-time CWD tracking** — the sidebar path and git branch update automatically as you `cd` (via OSC 7)
+- **Git worktree grouping** — tabs that are linked worktrees of another tab are automatically nested beneath their parent in the sidebar with a visual indent and `⎇` indicator
+
+### Git panels
+- **Git Diff** — file browser of working-tree changes with a GitHub Desktop-style diff viewer (line numbers, +/− gutter, image before/after)
+- **Git History** — full commit log with LOCAL/pushed distinction, per-commit file list, and inline diff
+- **Image diffs** — PNG, JPG, SVG, and other images show visual before/after comparisons instead of binary output
+
+### UI
+- **Collapsible sidebar** — docked (pushes content), floating (Arc-style overlay), or hidden
+- **Tab renaming** — double-click any context name to rename it inline
+- **Dark theme** — zinc/slate palette with a blue accent, optimized for long coding sessions
 
 ---
 
@@ -29,12 +38,12 @@ Built with **Tauri 2** (Rust backend) + **React** frontend + **xterm.js**.
 
 ### Requirements
 
-- macOS 13+ (tested on macOS 15 Sequoia)
-- [Rust](https://rustup.rs/) (stable toolchain)
+- macOS 13 or later (tested on macOS 15 Sequoia)
+- [Rust](https://rustup.rs/) stable toolchain
 - [Node.js](https://nodejs.org/) 18+ and [pnpm](https://pnpm.io/)
-- Xcode Command Line Tools: `xcode-select --install`
+- Xcode Command Line Tools — `xcode-select --install`
 
-### Run in development
+### Development
 
 ```bash
 git clone https://github.com/youruser/vibeterm.git
@@ -43,85 +52,65 @@ pnpm install
 pnpm tauri dev
 ```
 
-### Build for production
+### Production build
 
 ```bash
 pnpm tauri build
 ```
 
-The `.dmg` installer will be in `src-tauri/target/release/bundle/dmg/`.
+The `.dmg` installer lands in `src-tauri/target/release/bundle/dmg/`.
 
 ---
 
-## How to use
+## Usage
 
-### Creating contexts
+### Creating and managing contexts
 
-Click the **`+`** button in the sidebar header to create a new terminal context. Each context gets its own shell session starting in `~`.
-
-To rename a context, **double-click** its name in the sidebar and type a new alias. Press **Enter** to confirm or **Escape** to cancel.
-
-### Switching between contexts
-
-Click any context in the sidebar to switch to it. The previous terminal session keeps running in the background — your history, running processes, and scroll position are all preserved.
+| Action | How |
+|--------|-----|
+| New context | Click **`+`** in the sidebar header |
+| Switch context | Click any sidebar item |
+| Rename context | Double-click the name → type → **Enter** |
+| Close context | Hover the item → click **`✕`** (kills the PTY session) |
 
 ### Sidebar modes
 
-The sidebar has three modes, toggled with **`⌘\`** or the buttons in the header:
+Toggle with **`⌘\`** or the header buttons:
 
 | Mode | Behavior |
 |------|----------|
-| **Docked** | Sidebar is fixed to the left, pushes the terminal content |
-| **Floating** | Sidebar overlays the content (Arc-style); click outside to dismiss |
-| **Hidden** | Sidebar is hidden; click the thin strip on the left edge to bring it back as floating |
-
-The `‹` chevron button always collapses the sidebar. The pin `⊕` button (visible only in floating mode) docks it permanently.
+| **Docked** | Fixed to the left; pushes terminal content |
+| **Floating** | Overlays content (Arc-style); click outside to dismiss |
+| **Hidden** | Collapsed; click the left edge strip to bring it back as floating |
 
 ### Panel tabs
 
-Each context has four panel tabs at the top of the main area:
+Each context has four panels at the top of the main area:
 
-#### Terminal
+**Terminal** — your shell. Created on first view, stays alive until the context is closed.
 
-Your actual shell. The session is created when the tab first becomes visible and stays alive as long as the context exists. Closing a context kills the PTY session.
+**Git Diff** — working-tree changes. File list on the left, diff on the right. Refreshes every 3 seconds. Click any file to see its diff; image files show a visual before/after instead of binary noise.
 
-The terminal automatically resizes when the window is resized or when focus returns to the app after switching to another application.
+**Git History** — full commit log. Select a commit to browse its changed files and diffs. `LOCAL` badge (yellow) marks commits not yet pushed to remote.
 
-#### Git Diff
+**Changes** — staging area and commit UI *(coming soon)*.
 
-Shows working-tree changes — files you've modified, added, or deleted but haven't committed yet.
+### Git worktree grouping
 
-- **Left column**: list of changed files with status badges (`M` modified, `A` added, `D` deleted, `U` untracked)
-- **Right pane**: diff for the selected file with line numbers and color coding
-- For image files (PNG, JPG, SVG, etc.), shows a before/after visual comparison instead of a text diff
-- Refreshes automatically every 3 seconds
+If you open contexts for both a main repo and one of its linked worktrees, vibeTerm detects the relationship automatically and moves the worktree context to appear directly below its parent in the sidebar — indented with a left border and an `⎇` branch icon.
 
-#### Git History
-
-The full commit log for the current branch.
-
-- **Commits column** (left): each commit shows its hash, message, author, and relative date
-  - **`LOCAL`** badge (yellow) = commit exists only on your machine, not yet pushed to remote
-  - Gray dot = commit has been pushed to remote
-- **Files column** (middle): files changed in the selected commit
-- **Diff column** (right): diff for the selected file in that commit, with the same image diff support as the Git Diff panel
-
-#### Changes
-
-Coming soon.
+No configuration needed; detection happens via `git worktree list` on session start and on every directory change.
 
 ---
 
-## Real-time path tracking
+## Keyboard shortcuts
 
-vibeTerm uses **OSC 7** escape sequences to track where your shell actually is. When you `cd` to a new directory, the sidebar updates the path and re-fetches the git status automatically.
-
-This works out of the box with:
-- **zsh** on macOS (the default shell emits OSC 7 via `update_terminal_cwd` in `/etc/zshrc`)
-- **fish** shell
-- Most modern shells with OSC 7 configured
-
-If your shell doesn't emit OSC 7, the path shown in the sidebar stays as the initial working directory — nothing breaks, it just won't update dynamically.
+| Shortcut | Action |
+|----------|--------|
+| `⌘\` | Toggle sidebar hidden ↔ docked |
+| Double-click tab | Rename context |
+| `Enter` | Confirm rename |
+| `Escape` | Cancel rename |
 
 ---
 
@@ -133,27 +122,30 @@ If your shell doesn't emit OSC 7, the path shown in the sidebar stays as the ini
 | Frontend | React 18 + TypeScript + Vite |
 | Styling | Tailwind CSS |
 | Terminal emulator | [xterm.js](https://xtermjs.org/) v5 |
-| PTY (pseudoterminal) | [portable-pty](https://crates.io/crates/portable-pty) |
-| State management | Zustand (persisted to localStorage) |
-| Git operations | `git` CLI via `std::process::Command` |
+| PTY | [portable-pty](https://crates.io/crates/portable-pty) |
+| State | Zustand (persisted to localStorage) |
+| Git | `git` CLI via `std::process::Command` |
 
 ---
 
-## Keyboard shortcuts
+## OSC 7 — how CWD tracking works
 
-| Shortcut | Action |
-|----------|--------|
-| `⌘\` | Toggle sidebar hidden ↔ docked |
-| Double-click tab name | Rename context |
-| `Enter` | Confirm rename |
-| `Escape` | Cancel rename |
+vibeTerm listens for [OSC 7](https://iterm2.com/documentation-escape-codes.html) escape sequences emitted by the shell when the current directory changes. The sidebar path and git status update instantly on every `cd`.
+
+Works out of the box with:
+- **zsh** on macOS (default — emits OSC 7 via `update_terminal_cwd` in `/etc/zshrc`)
+- **fish** shell
+- Any shell configured to emit `\e]7;file://host/path\a`
+
+If your shell doesn't emit OSC 7 the sidebar path stays fixed at the session's starting directory — nothing breaks.
 
 ---
 
 ## macOS Sequoia compatibility
 
-vibeTerm patches the `tao` windowing library to fix a startup crash on macOS 15 Sequoia. The crash was caused by an ObjC exception (`NSImageCacheException`) propagating through an `extern "C"` FFI boundary, combined with `+[NSThread isMainThread]` returning incorrect results inside `applicationDidFinishLaunching`.
+vibeTerm patches the `tao` windowing library to fix a startup crash on macOS 15. The crash originated from `+[NSThread isMainThread]` returning `NO` inside `applicationDidFinishLaunching` on Sequoia, causing an ObjC exception to propagate through an `extern "C"` FFI boundary.
 
-The patch (in `patches/tao/`, applied via `[patch.crates-io]` in `Cargo.toml`) makes two fixes:
-1. Uses `pthread_main_np()` instead of `+[NSThread isMainThread]` for main-thread detection
-2. Wraps `applicationDidFinishLaunching` in `objc2::exception::catch` so ObjC exceptions print a useful message instead of silently aborting
+The patch in `patches/tao/` (applied via `[patch.crates-io]` in `Cargo.toml`) makes two fixes:
+
+1. Replaces `+[NSThread isMainThread]` with `pthread_main_np()` for correct main-thread detection on Sequoia
+2. Wraps `applicationDidFinishLaunching` in `objc2::exception::catch` so ObjC exceptions surface as readable errors instead of silent aborts

@@ -12,7 +12,48 @@ const TYPE_ICONS: Record<TabType, string> = {
   database: "⊕",
 };
 
-function TabItem({ tab, isActive }: { tab: Tab; isActive: boolean }) {
+// Returns tabs in display order: worktree children appear right after their parent.
+function groupedTabs(tabs: Tab[]): { tab: Tab; isWorktree: boolean }[] {
+  const result: { tab: Tab; isWorktree: boolean }[] = [];
+  const placed = new Set<string>();
+
+  const findParent = (child: Tab) =>
+    tabs.find(
+      (t) =>
+        t.id !== child.id &&
+        child.worktreeOf !== null &&
+        (t.path === child.worktreeOf ||
+          t.path.startsWith(child.worktreeOf + "/"))
+    );
+
+  for (const tab of tabs) {
+    if (placed.has(tab.id)) continue;
+    // If this tab has a parent in the list, skip it for now
+    if (tab.worktreeOf && findParent(tab)) continue;
+
+    result.push({ tab, isWorktree: false });
+    placed.add(tab.id);
+
+    // Place worktree children of this tab immediately after
+    for (const other of tabs) {
+      if (placed.has(other.id) || !other.worktreeOf) continue;
+      const parent = findParent(other);
+      if (parent?.id === tab.id) {
+        result.push({ tab: other, isWorktree: true });
+        placed.add(other.id);
+      }
+    }
+  }
+
+  // Orphaned worktrees (parent tab not in list) — render flat
+  for (const tab of tabs) {
+    if (!placed.has(tab.id)) result.push({ tab, isWorktree: false });
+  }
+
+  return result;
+}
+
+function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: boolean; isWorktree?: boolean }) {
   const { setActiveTab, removeTab, updateTab } = useTabStore();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(tab.alias);
@@ -36,19 +77,27 @@ function TabItem({ tab, isActive }: { tab: Tab; isActive: boolean }) {
 
   return (
     <div
-      className={`group flex flex-col px-3 py-2.5 cursor-pointer rounded-md mx-2 mb-1 transition-colors ${
+      className={`group flex flex-col px-3 py-2.5 cursor-pointer rounded-md mb-1 transition-colors ${
+        isWorktree ? "mx-0 ml-5 border-l-2 border-accent/30 rounded-l-none pl-2" : "mx-2"
+      } ${
         isActive
           ? "bg-sidebar-active border border-border"
           : "hover:bg-sidebar-hover border border-transparent"
-      }`}
+      } ${isWorktree && isActive ? "border-l-accent/70" : ""}`}
       onClick={() => !editing && setActiveTab(tab.id)}
       onDoubleClick={handleDoubleClick}
     >
       <div className="flex items-center gap-2">
-        {/* Type icon */}
-        <span className="text-zinc-400 text-xs w-5 text-center font-mono flex-shrink-0">
-          {TYPE_ICONS[tab.type]}
-        </span>
+        {/* Type icon / worktree indicator */}
+        {isWorktree ? (
+          <span className="text-accent/70 text-xs w-5 text-center font-mono flex-shrink-0" title="Git worktree">
+            ⎇
+          </span>
+        ) : (
+          <span className="text-zinc-400 text-xs w-5 text-center font-mono flex-shrink-0">
+            {TYPE_ICONS[tab.type]}
+          </span>
+        )}
 
         {/* Alias */}
         {editing ? (
@@ -215,8 +264,8 @@ export default function Sidebar() {
 
       {/* Tab list */}
       <div className="flex-1 overflow-y-auto py-2">
-        {tabs.map((tab) => (
-          <TabItem key={tab.id} tab={tab} isActive={tab.id === activeTabId} />
+        {groupedTabs(tabs).map(({ tab, isWorktree }) => (
+          <TabItem key={tab.id} tab={tab} isActive={tab.id === activeTabId} isWorktree={isWorktree} />
         ))}
 
         {tabs.length === 0 && (

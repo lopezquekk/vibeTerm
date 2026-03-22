@@ -133,6 +133,11 @@ fn open_url(url: String) {
     let _ = std::process::Command::new("open").arg(&url).spawn();
 }
 
+#[tauri::command]
+fn get_worktree_main(path: String) -> Result<Option<String>, String> {
+    git::get_worktree_main(&path)
+}
+
 // ── App entry point ───────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -171,6 +176,7 @@ pub fn run() {
             switch_branch,
             create_branch,
             open_url,
+            get_worktree_main,
         ])
         .run(tauri::generate_context!())
         .expect("error while running vibeterm");

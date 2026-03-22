@@ -156,6 +156,14 @@ export default function TerminalView({ tabId, path }: Props) {
       rows: term.rows,
     }).catch(console.error);
 
+    // Detect if this path is inside a linked worktree
+    const refreshWorktree = (p: string) => {
+      invoke<string | null>("get_worktree_main", { path: p })
+        .then((main) => updateTab(tabId, { worktreeOf: main ?? null }))
+        .catch(() => {});
+    };
+    refreshWorktree(path);
+
     // Listen for PTY output
     listen(`pty-output-${tabId}`, (e) => {
       term.write(e.payload as string);
@@ -180,6 +188,7 @@ export default function TerminalView({ tabId, path }: Props) {
       invoke<import("../store/tabStore").GitStatus>("get_git_status", { path: newPath })
         .then((git) => updateTab(tabId, { git }))
         .catch(() => updateTab(tabId, { git: null }));
+      refreshWorktree(newPath);
     }).then((fn) => {
       unlistenCwd.current = fn;
     });

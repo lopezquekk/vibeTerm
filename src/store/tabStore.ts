@@ -24,6 +24,7 @@ export interface Tab {
   sessionId: string | null;
   detectedPort: string | null;
   hasActivity: boolean;
+  worktreeOf: string | null; // main worktree root path if this is a linked worktree
 }
 
 export type SidebarMode = "docked" | "floating" | "hidden";
@@ -66,6 +67,7 @@ export const useTabStore = create<TabStore>()(
           sessionId: null,
           detectedPort: null,
           hasActivity: false,
+          worktreeOf: null,
         };
         set((s) => ({
           tabs: [...s.tabs, tab],
@@ -107,7 +109,14 @@ export const useTabStore = create<TabStore>()(
     {
       name: "vibeterm-workspace",
       partialize: (s) => ({
-        tabs: s.tabs.map((t) => ({ ...t, sessionId: null, git: null, detectedPort: null, hasActivity: false })),
+        tabs: s.tabs.map((t) => ({
+          ...t,
+          sessionId: null,
+          git: null,
+          detectedPort: null,
+          hasActivity: false,
+          worktreeOf: null,
+        })),
         activeTabId: s.activeTabId,
         sidebarMode: s.sidebarMode,
       }),

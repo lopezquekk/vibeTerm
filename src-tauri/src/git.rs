@@ -538,3 +538,47 @@ pub fn get_file_diff(repo_path: &str, file: &str) -> Result<String, String> {
 
     Ok(String::from_utf8_lossy(&staged.stdout).to_string())
 }
+
+/// Returns the main worktree root path if `path` is inside a linked worktree,
+/// or None if it is the main worktree (or not in a git repo at all).
+pub fn get_worktree_main(path: &str) -> Result<Option<String>, String> {
+    let out = Command::new("git")
+        .args(["-C", path, "worktree", "list", "--porcelain"])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !out.status.success() {
+        return Ok(None);
+    }
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let mut worktrees: Vec<String> = vec![];
+    for line in stdout.lines() {
+        if let Some(p) = line.strip_prefix("worktree ") {
+            worktrees.push(p.trim().to_string());
+        }
+    }
+
+    if worktrees.len() <= 1 {
+        return Ok(None);
+    }
+
+    let main_path = &worktrees[0];
+
+    let path_canonical = std::fs::canonicalize(path)
+        .unwrap_or_else(|_| std::path::PathBuf::from(path));
+    let main_canonical = std::fs::canonicalize(main_path)
+        .unwrap_or_else(|_| std::path::PathBuf::from(main_path));
+
+    let path_str = path_canonical.to_string_lossy().to_string();
+    let main_str = main_canonical.to_string_lossy().to_string();
+
+    let is_in_main = path_str == main_str
+        || path_str.starts_with(&format!("{}/", main_str));
+
+    if is_in_main {
+        Ok(None)
+    } else {
+        Ok(Some(main_str))
+    }
+}
