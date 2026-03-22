@@ -46,8 +46,7 @@ app.use("/api/git", createGitRouter(() => allowedPaths));
 app.use("/api/control", createControlRouter(addPath));
 app.use(createStaticRouter());
 app.get("*", (_req, res) => {
-  const idx = path.resolve(__dirname,
-    process.env.NODE_ENV === "production" ? "../../../dist/index.html" : "../../dist/index.html");
+  const idx = path.resolve(__dirname, "../../dist/index.html");
   res.sendFile(idx);
 });
 
@@ -57,9 +56,14 @@ const server = http.createServer(app);
 // Rate limiting (5 failures / 60s window per IP) is applied inside verifyClient before the 101 response.
 const wss = new WebSocketServer({ server, path: "/pty", ...createWssOptions(getToken) });
 setupWsServer(wss, getToken);
+// Prevent unhandled error events from crashing the process when the underlying
+// http server fails (e.g. EADDRINUSE); that case is handled by server.on("error").
+wss.on("error", () => {});
 
 server.listen(PORT, "0.0.0.0", () => {
-  process.stdout.write(JSON.stringify({ status: "ready", port: PORT }) + "\n");
+  const addr = server.address() as { port: number } | null;
+  const actualPort = addr?.port ?? PORT;
+  process.stdout.write(JSON.stringify({ status: "ready", port: actualPort }) + "\n");
 }).on("error", (err: NodeJS.ErrnoException) => {
   const message = err.code === "EADDRINUSE" ? "port in use" : err.message;
   process.stdout.write(JSON.stringify({ status: "error", message }) + "\n");

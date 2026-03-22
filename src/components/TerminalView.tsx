@@ -142,8 +142,13 @@ export default function TerminalView({ tabId, path }: Props) {
       });
     };
 
-    // Start PTY session
-    transport.ptyCreate(tabId, path, term.cols, term.rows).catch(console.error);
+    // Start PTY session — ensure non-zero cols/rows even if fit hasn't measured yet
+    const initCols = Math.max(term.cols, 80);
+    const initRows = Math.max(term.rows, 24);
+    transport.ptyCreate(tabId, path, initCols, initRows).catch((err) => {
+      term.writeln(`\r\n\x1b[31mConnection error: ${err?.message ?? err}\x1b[0m`);
+      console.error(err);
+    });
 
     // Detect if this path is inside a linked worktree
     const refreshWorktree = (p: string) => {
@@ -176,7 +181,7 @@ export default function TerminalView({ tabId, path }: Props) {
     });
 
     // Re-fit when the app window regains focus
-    const isTauri = typeof (window as any).__TAURI__ !== "undefined";
+    const isTauri = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
     if (isTauri) {
       import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
         getCurrentWindow()

@@ -19,6 +19,8 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
+const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+
 export default function RemoteAccessPanel() {
   const tabs = useTabStore((s) => s.tabs);
   const [on, setOn] = useState(false);
@@ -28,6 +30,7 @@ export default function RemoteAccessPanel() {
   const qrRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (!IS_TAURI) return;
     const p = listen("remote-server-died", () => { setOn(false); setInfo(null); setError("Server stopped unexpectedly"); });
     return () => { p.then((fn) => fn()); };
   }, []);
@@ -63,6 +66,8 @@ export default function RemoteAccessPanel() {
   }, []);
 
   const buildUrl = (ip: string) => `http://${ip}:${info!.port}/#token=${info!.token}`;
+
+  if (!IS_TAURI) return null;
 
   return (
     <div className="px-3 py-2 border-t border-border mt-auto shrink-0">

@@ -1,6 +1,7 @@
 // server/src/pty-manager.ts
 import * as pty from "node-pty";
 import os from "os";
+import fs from "fs";
 import type WebSocket from "ws";
 
 const SESSION_TTL_MS = 30_000;
@@ -21,16 +22,49 @@ export function createSession(
   rows: number,
   ws: WebSocket
 ): void {
-  const shell = process.env.SHELL ??
-    (os.platform() === "win32" ? "powershell.exe" : "/bin/bash");
-  const resolvedCwd = cwd === "~" ? os.homedir() : cwd;
+  const home = os.homedir();
+
+  // Resolve shell: prefer env, then common paths, then /bin/sh
+  const shellCandidates = [
+    process.env.SHELL,
+    "/bin/zsh",
+    "/bin/bash",
+    "/bin/sh",
+  ];
+  const shell = shellCandidates.find((s) => {
+    if (!s) return false;
+    try { fs.accessSync(s, fs.constants.X_OK); return true; } catch { return false; }
+  }) ?? "/bin/sh";
+
+  // Resolve cwd, fall back to home if directory doesn't exist
+  const rawCwd = cwd === "~" ? home : cwd;
+  const resolvedCwd = (() => {
+    try { if (fs.statSync(rawCwd).isDirectory()) return rawCwd; } catch { /* */ }
+    return home;
+  })();
+
+  // Build a clean environment with essential variables
+  const env: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    HOME: home,
+    SHELL: shell,
+    TERM: "xterm-256color",
+    COLORTERM: "truecolor",
+    LANG: process.env.LANG ?? "en_US.UTF-8",
+  };
+  if (!env.PATH) {
+    env.PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin";
+  }
+
+  const safeCols = Math.max(cols, 10);
+  const safeRows = Math.max(rows, 3);
 
   const p = pty.spawn(shell, [], {
     name: "xterm-256color",
-    cols,
-    rows,
+    cols: safeCols,
+    rows: safeRows,
     cwd: resolvedCwd,
-    env: { ...process.env } as Record<string, string>,
+    env,
   });
 
   const session: Session = { pty: p, ws, ttlTimer: null, dataHandlerDispose: null };

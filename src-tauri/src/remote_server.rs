@@ -98,10 +98,11 @@ pub async fn start_remote_server(
     allowed_paths: Vec<String>,
 ) -> Result<ServerInfo, String> {
     let mut srv = state.lock().map_err(|e| e.to_string())?;
-    if srv.child.is_some() {
-        return Ok(ServerInfo { port: srv.port, token: srv.token.clone(),
-            local_ip: detect_local_ip(), tailscale_ip: detect_tailscale_ip() });
-    }
+    // Kill any existing server before starting a new one
+    if let Some(mut c) = srv.child.take() { let _ = c.kill(); }
+    srv.stdin = None;
+    srv.port = 0;
+    srv.token.clear();
 
     let node = find_node().ok_or(
         "Node.js not found. Install from nodejs.org or via Homebrew: brew install node"
@@ -112,7 +113,7 @@ pub async fn start_remote_server(
 
     let mut child = Command::new(&node)
         .arg(&script)
-        .args(["--port", "7788", "--token", &token, "--allowed-paths", &paths_json])
+        .args(["--port", "0", "--token", &token, "--allowed-paths", &paths_json])
         .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())
         .spawn().map_err(|e| format!("Failed to start server: {e}"))?;
 
@@ -132,10 +133,11 @@ pub async fn start_remote_server(
         .map_err(|_| "Server did not start within 5 seconds".to_string())?;
 
     #[derive(Deserialize)]
-    struct Startup { status: String, #[serde(default)] message: String }
+    struct Startup { status: String, #[serde(default)] port: u16, #[serde(default)] message: String }
     let msg: Startup = serde_json::from_str(&first)
         .map_err(|_| format!("Unexpected output: {first}"))?;
     if msg.status == "error" { let _ = child.kill(); return Err(msg.message); }
+    let actual_port = msg.port;
 
     // Spawn background watcher: emits "remote-server-died" if the process exits unexpectedly
     let state_arc: Arc<Mutex<RemoteServer>> = Arc::clone(&*state);
@@ -163,10 +165,10 @@ pub async fn start_remote_server(
 
     srv.child = Some(child);
     srv.stdin = Some(stdin);
-    srv.port = 7788;
+    srv.port = actual_port;
     srv.token = token.clone();
 
-    Ok(ServerInfo { port: 7788, token, local_ip: detect_local_ip(), tailscale_ip: detect_tailscale_ip() })
+    Ok(ServerInfo { port: actual_port, token, local_ip: detect_local_ip(), tailscale_ip: detect_tailscale_ip() })
 }
 
 #[tauri::command]

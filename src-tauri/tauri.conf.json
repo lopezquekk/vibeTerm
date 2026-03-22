@@ -37,8 +37,9 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "server/dist": "server/dist",
-      "server/node_modules": "server/node_modules"
+      "../server/dist": "server/dist",
+      "../server/node_modules": "server/node_modules",
+      "../dist": "dist"
     }
   }
 }
