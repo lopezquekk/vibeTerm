@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 import {
   type ImageDiff,
@@ -49,12 +49,12 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
     if (!tab?.path) return;
 
     const load = () =>
-      invoke<CommitInfo[]>("get_git_log", { path: tab.path })
+      transport.getGitLog(tab.path)
         .then(setCommits)
         .catch(() => setCommits([]));
 
     setLoading(true);
-    invoke<CommitInfo[]>("get_git_log", { path: tab.path })
+    transport.getGitLog(tab.path)
       .then((list) => { setCommits(list); setLoading(false); })
       .catch(() => { setCommits([]); setLoading(false); });
 
@@ -77,7 +77,7 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
     setDiffLines([]);
     setImageDiff(null);
 
-    invoke<CommitFile[]>("get_commit_files", { path: tab.path, hash: selectedHash })
+    transport.getCommitFiles(tab.path, selectedHash)
       .then((list) => {
         setFiles(list);
         if (list.length > 0) setSelectedFile(list[0].path);
@@ -93,16 +93,12 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
     setImageDiff(null);
 
     if (isImageFile(selectedFile)) {
-      invoke<ImageDiff>("get_commit_image_diff", {
-        path: tab.path, hash: selectedHash, file: selectedFile,
-      })
+      transport.getCommitImageDiff(tab.path, selectedHash, selectedFile)
         .then((d) => { setImageDiff(d); diffRef.current?.scrollTo({ top: 0 }); })
         .catch(() => setImageDiff(null))
         .finally(() => setDiffLoading(false));
     } else {
-      invoke<string>("get_commit_file_diff", {
-        path: tab.path, hash: selectedHash, file: selectedFile,
-      })
+      transport.getCommitFileDiff(tab.path, selectedHash, selectedFile)
         .then((raw) => { setDiffLines(parseDiffLines(raw)); diffRef.current?.scrollTo({ top: 0 }); })
         .catch(() => setDiffLines([]))
         .finally(() => setDiffLoading(false));

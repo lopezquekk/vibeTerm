@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 import {
   type ImageDiff,
@@ -137,7 +137,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
   const refresh = useCallback(async () => {
     if (!tab?.path) return;
     try {
-      const s = await invoke<WorkdirStatus>("get_workdir_status", { path: tab.path });
+      const s = await transport.getWorkdirStatus(tab.path);
       setStatus(s);
     } catch {
       setStatus({ staged: [], unstaged: [] });
@@ -163,26 +163,32 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
     setDiffLines([]);
     setImageDiff(null);
 
-    const cmd = selection.area === "staged" ? "get_staged_file_diff" : "get_file_diff";
-
     if (isImageFile(selection.path)) {
-      invoke<ImageDiff>("get_image_diff", { path: tab.path, file: selection.path })
+      transport.getImageDiff(tab.path, selection.path)
         .then((d) => { setImageDiff(d); diffRef.current?.scrollTo({ top: 0 }); })
         .catch(() => setImageDiff(null))
         .finally(() => setDiffLoading(false));
     } else {
-      invoke<string>(cmd, { path: tab.path, file: selection.path })
+      (selection.area === "staged"
+        ? transport.getStagedFileDiff(tab.path, selection.path)
+        : transport.getFileDiff(tab.path, selection.path))
         .then((raw) => { setDiffLines(parseDiffLines(raw)); diffRef.current?.scrollTo({ top: 0 }); })
         .catch(() => setDiffLines([]))
         .finally(() => setDiffLoading(false));
     }
   }, [tab?.path, selection?.path, selection?.area]);
 
-  const act = async (cmd: string, file?: string) => {
+  const act = async (
+    action: "stage" | "unstage" | "discard" | "stageAll",
+    file?: string
+  ) => {
     if (!tab?.path) return;
-    const args: Record<string, string> = { path: tab.path };
-    if (file) args.file = file;
-    try { await invoke(cmd, args); } catch { /* ignore */ }
+    try {
+      if (action === "stage" && file)        await transport.stageFile(tab.path, file);
+      else if (action === "unstage" && file) await transport.unstageFile(tab.path, file);
+      else if (action === "discard" && file) await transport.discardFile(tab.path, file);
+      else if (action === "stageAll")        await transport.stageAll(tab.path);
+    } catch { /* ignore */ }
     await refresh();
   };
 
@@ -191,7 +197,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
     setCommitting(true);
     setCommitError(null);
     try {
-      await invoke("git_commit", { path: tab.path, message: commitMsg.trim() });
+      await transport.gitCommit(tab.path, commitMsg.trim());
       setCommitMsg("");
       setSelection(null);
       await refresh();
@@ -226,7 +232,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
           action={
             status.staged.length > 0 ? (
               <button
-                onClick={() => act("unstage_file", ".")}
+                onClick={() => act("unstage", ".")}
                 className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors px-1"
                 title="Unstage all"
               >
@@ -246,7 +252,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
                 isActive={selection?.path === f.path && selection?.area === "staged"}
                 onClick={() => setSelection({ path: f.path, area: "staged" })}
                 actions={
-                  <ActionBtn onClick={() => act("unstage_file", f.path)} title="Unstage">−</ActionBtn>
+                  <ActionBtn onClick={() => act("unstage", f.path)} title="Unstage">−</ActionBtn>
                 }
               />
             ))
@@ -260,7 +266,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
           action={
             status.unstaged.length > 0 ? (
               <button
-                onClick={() => act("stage_all")}
+                onClick={() => act("stageAll")}
                 className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors px-1"
                 title="Stage all"
               >
@@ -281,9 +287,9 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
                 onClick={() => setSelection({ path: f.path, area: "unstaged" })}
                 actions={
                   <>
-                    <ActionBtn onClick={() => act("stage_file", f.path)} title="Stage">+</ActionBtn>
+                    <ActionBtn onClick={() => act("stage", f.path)} title="Stage">+</ActionBtn>
                     {f.status !== "??" && (
-                      <ActionBtn onClick={() => act("discard_file", f.path)} title="Discard changes" danger>✕</ActionBtn>
+                      <ActionBtn onClick={() => act("discard", f.path)} title="Discard changes" danger>✕</ActionBtn>
                     )}
                   </>
                 }

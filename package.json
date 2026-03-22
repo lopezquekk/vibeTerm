@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build:frontend": "tsc && vite build",
+    "build:server": "cd server && npm install && npm rebuild node-pty && npm run build",
+    "build": "pnpm build:server && pnpm build:frontend",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -16,12 +18,14 @@
     "@xterm/addon-search": "^0.16.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/xterm": "^5.5.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.1",

@@ -4,9 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
 import "@xterm/xterm/css/xterm.css";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 
 interface Props {
@@ -140,71 +138,63 @@ export default function TerminalView({ tabId, path }: Props) {
         const el = containerRef.current;
         if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) return;
         try { fitAddon.fit(); } catch { /* ignore if terminal disposed */ }
-        invoke("resize_session", {
-          tabId,
-          cols: term.cols,
-          rows: term.rows,
-        }).catch(console.error);
+        transport.ptyResize(tabId, term.cols, term.rows);
       });
     };
 
-    // Start PTY session
-    invoke("create_session", {
-      tabId,
-      cwd: path,
-      cols: term.cols,
-      rows: term.rows,
-    }).catch(console.error);
+    // Start PTY session — ensure non-zero cols/rows even if fit hasn't measured yet
+    const initCols = Math.max(term.cols, 80);
+    const initRows = Math.max(term.rows, 24);
+    transport.ptyCreate(tabId, path, initCols, initRows).catch((err) => {
+      term.writeln(`\r\n\x1b[31mConnection error: ${err?.message ?? err}\x1b[0m`);
+      console.error(err);
+    });
 
     // Detect if this path is inside a linked worktree
     const refreshWorktree = (p: string) => {
-      invoke<string | null>("get_worktree_main", { path: p })
+      transport.getWorktreeMain(p)
         .then((main) => updateTab(tabId, { worktreeOf: main ?? null }))
         .catch(() => {});
     };
     refreshWorktree(path);
 
     // Listen for PTY output
-    listen(`pty-output-${tabId}`, (e) => {
-      term.write(e.payload as string);
+    unlisten.current = transport.onPtyData(tabId, (data) => {
+      term.write(data);
       if (activeTabIdRef.current !== tabId) {
         updateTab(tabId, { hasActivity: true });
       }
-    }).then((fn) => {
-      unlisten.current = fn;
     });
 
     // Listen for local server detection and store the URL
-    listen(`port-detected-${tabId}`, (e) => {
-      updateTab(tabId, { detectedPort: e.payload as string });
-    }).then((fn) => {
-      unlistenPort.current = fn;
+    unlistenPort.current = transport.onPortDetected(tabId, (port) => {
+      updateTab(tabId, { detectedPort: port });
     });
 
     // Listen for CWD changes (OSC 7) and update the store
-    listen(`cwd-changed-${tabId}`, (e) => {
-      const newPath = e.payload as string;
+    unlistenCwd.current = transport.onCwdChanged(tabId, (newPath) => {
       updateTab(tabId, { path: newPath });
-      invoke<import("../store/tabStore").GitStatus>("get_git_status", { path: newPath })
+      transport.getGitStatus(newPath)
         .then((git) => updateTab(tabId, { git }))
         .catch(() => updateTab(tabId, { git: null }));
       refreshWorktree(newPath);
-    }).then((fn) => {
-      unlistenCwd.current = fn;
     });
 
     // Re-fit when the app window regains focus
-    getCurrentWindow()
-      .onFocusChanged(({ payload: focused }) => {
-        if (focused) scheduleFit();
-      })
-      .then((fn) => {
-        unlistenFocus.current = fn;
+    const isTauri = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+    if (isTauri) {
+      import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+        getCurrentWindow()
+          .onFocusChanged(({ payload: focused }) => {
+            if (focused) scheduleFit();
+          })
+          .then((fn) => { unlistenFocus.current = fn; });
       });
+    }
 
     // Send input to PTY
     term.onData((data) => {
-      invoke("write_input", { tabId, data }).catch(console.error);
+      transport.ptyWrite(tabId, data);
     });
 
     // Re-fit when the container's dimensions change
@@ -220,7 +210,7 @@ export default function TerminalView({ tabId, path }: Props) {
       unlistenPort.current?.();
       unlistenFocus.current?.();
       resizeObserver.disconnect();
-      invoke("kill_session", { tabId }).catch(console.error);
+      transport.ptyClose(tabId).catch(console.error);
       term.dispose();
     };
   }, [tabId]);

@@ -1,6 +1,8 @@
 mod git;
 mod pty;
+mod remote_server;
 
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager};
 
 // ── PTY commands ─────────────────────────────────────────────────────────────
@@ -149,6 +151,7 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 window.set_icon(icon).ok();
             }
+            app.manage(Arc::new(Mutex::new(remote_server::RemoteServer::default())));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -177,6 +180,11 @@ pub fn run() {
             create_branch,
             open_url,
             get_worktree_main,
+            remote_server::start_remote_server,
+            remote_server::stop_remote_server,
+            remote_server::get_remote_server_status,
+            remote_server::regenerate_remote_token,
+            remote_server::add_remote_allowed_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running vibeterm");

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 import {
   type ImageDiff,
@@ -35,7 +35,7 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
 
     const fetch = async () => {
       try {
-        const list = await invoke<ChangedFile[]>("get_changed_files", { path: tab.path });
+        const list = await transport.getChangedFiles(tab.path);
         setFiles(list);
       } catch {
         setFiles([]);
@@ -70,7 +70,7 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
     setImageDiff(null);
 
     if (isImageFile(selected)) {
-      invoke<ImageDiff>("get_image_diff", { path: tab.path, file: selected })
+      transport.getImageDiff(tab.path, selected)
         .then((result) => {
           setImageDiff(result);
           diffRef.current?.scrollTo({ top: 0 });
@@ -78,7 +78,7 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
         .catch(() => setImageDiff(null))
         .finally(() => setDiffLoading(false));
     } else {
-      invoke<string>("get_file_diff", { path: tab.path, file: selected })
+      transport.getFileDiff(tab.path, selected)
         .then((raw) => {
           setDiffLines(parseDiffLines(raw));
           diffRef.current?.scrollTo({ top: 0 });
