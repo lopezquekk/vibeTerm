@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../transport/factory";
 
 interface BranchInfo {
   name: string;
@@ -22,7 +22,7 @@ export default function BranchPicker({ repoPath, anchorRect, onClose, onSwitched
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    invoke<BranchInfo[]>("get_branches", { path: repoPath })
+    transport.getBranches(repoPath)
       .then((list) => { setBranches(list); setLoading(false); })
       .catch((e) => { setError(String(e)); setLoading(false); });
   }, [repoPath]);
@@ -42,7 +42,7 @@ export default function BranchPicker({ repoPath, anchorRect, onClose, onSwitched
     setSwitching(name);
     setError(null);
     try {
-      await invoke("switch_branch", { path: repoPath, branch: name });
+      await transport.switchBranch(repoPath, name);
       onSwitched();
       onClose();
     } catch (e) {
@@ -57,7 +57,7 @@ export default function BranchPicker({ repoPath, anchorRect, onClose, onSwitched
     setSwitching(name);
     setError(null);
     try {
-      await invoke("create_branch", { path: repoPath, branch: name });
+      await transport.createBranch(repoPath, name);
       onSwitched();
       onClose();
     } catch (e) {

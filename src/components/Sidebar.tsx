@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../transport/factory";
 import { useTabStore, Tab, TabType } from "../store/tabStore";
 import BranchPicker from "./BranchPicker";
 
@@ -187,7 +187,7 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
           anchorRect={branchAnchor}
           onClose={() => setBranchAnchor(null)}
           onSwitched={() => {
-            invoke<import("../store/tabStore").GitStatus>("get_git_status", { path: tab.path })
+            transport.getGitStatus(tab.path)
               .then((git) => updateTab(tab.id, { git }))
               .catch(() => {});
           }}
@@ -203,7 +203,7 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
             title={`Open ${tab.detectedPort}`}
             onClick={(e) => {
               e.stopPropagation();
-              invoke("open_url", { url: tab.detectedPort });
+              transport.openUrl(tab.detectedPort!);
             }}
           >
             {tab.detectedPort.replace(/^https?:\/\//, "")}
