@@ -4117,8 +4117,10 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vibeterm"
 version = "1.0.0"
 dependencies = [
+ "hex",
  "once_cell",
  "portable-pty",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "tauri",

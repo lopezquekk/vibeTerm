@@ -11,20 +11,20 @@ describe("createAuthMiddleware", () => {
   const mw = createAuthMiddleware(() => "secret123");
 
   it("passes with valid Bearer token", () => {
-    const next = vi.fn() as NextFunction;
+    const next = vi.fn() as unknown as NextFunction;
     mw(makeReq("Bearer secret123"), makeRes(), next);
     expect(next).toHaveBeenCalledOnce();
   });
 
   it("returns 401 with wrong token", () => {
     const res = makeRes();
-    mw(makeReq("Bearer wrong"), res, vi.fn() as NextFunction);
+    mw(makeReq("Bearer wrong"), res, vi.fn() as unknown as NextFunction);
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
   it("returns 401 with no auth header", () => {
     const res = makeRes();
-    mw(makeReq(), res, vi.fn() as NextFunction);
+    mw(makeReq(), res, vi.fn() as unknown as NextFunction);
     expect(res.status).toHaveBeenCalledWith(401);
   });
 });
