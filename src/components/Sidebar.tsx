@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { transport } from "../transport/factory";
 import { useTabStore, Tab, TabType } from "../store/tabStore";
 import BranchPicker from "./BranchPicker";
+import RemoteAccessPanel from "./RemoteAccessPanel";
 
 const TYPE_ICONS: Record<TabType, string> = {
   project: "◈",
@@ -288,6 +289,7 @@ export default function Sidebar() {
           </p>
         )}
       </div>
+      <RemoteAccessPanel />
     </div>
   );
 }
