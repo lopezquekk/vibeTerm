@@ -14,14 +14,7 @@ interface Props {
   path: string;
 }
 
-const SEARCH_DECORATIONS = {
-  matchBackground: "#fbbf2430",
-  matchBorder: "#fbbf2460",
-  matchOverviewRuler: "#fbbf2480",
-  activeMatchBackground: "#fbbf2470",
-  activeMatchBorder: "#fbbf24",
-  activeMatchColorOverviewRuler: "#fbbf24",
-};
+const SEARCH_OPTIONS = { caseSensitive: false, incremental: true };
 
 export default function TerminalView({ tabId, path }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -44,13 +37,36 @@ export default function TerminalView({ tabId, path }: Props) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Focus the input after React has committed the render — reliable regardless
+  // of where setSearchOpen(true) was called from (xterm handler, window handler, etc.)
+  useEffect(() => {
+    if (searchOpen) {
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+    }
+  }, [searchOpen]);
+
   // Run search whenever the query changes while the bar is open
   useEffect(() => {
     if (!searchOpen || !searchRef.current) return;
     if (searchQuery) {
-      searchRef.current.findNext(searchQuery, { caseSensitive: false, decorations: SEARCH_DECORATIONS });
+      searchRef.current.findNext(searchQuery, SEARCH_OPTIONS);
     }
   }, [searchQuery, searchOpen]);
+
+  // Window-level ⌘F fallback: fires when the terminal element is visible but
+  // doesn't have keyboard focus (e.g. user clicked outside the terminal).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.metaKey || e.key !== "f") return;
+      const el = containerRef.current;
+      if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) return;
+      e.preventDefault();
+      searchOpenRef.current = true;
+      setSearchOpen(true);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -83,7 +99,6 @@ export default function TerminalView({ tabId, path }: Props) {
       lineHeight: 1.4,
       cursorBlink: true,
       scrollback: 5000,
-      overviewRulerWidth: 15,
     });
 
     const fitAddon = new FitAddon();
@@ -105,7 +120,6 @@ export default function TerminalView({ tabId, path }: Props) {
       if (e.metaKey && e.key === "f") {
         searchOpenRef.current = true;
         setSearchOpen(true);
-        requestAnimationFrame(() => searchInputRef.current?.focus());
         return false; // don't pass ⌘F to the shell
       }
       if (e.key === "Escape" && searchOpenRef.current) {
@@ -204,12 +218,12 @@ export default function TerminalView({ tabId, path }: Props) {
 
   const findNext = () => {
     if (!searchRef.current || !searchQuery) return;
-    searchRef.current.findNext(searchQuery, { caseSensitive: false, decorations: SEARCH_DECORATIONS });
+    searchRef.current.findNext(searchQuery, SEARCH_OPTIONS);
   };
 
   const findPrev = () => {
     if (!searchRef.current || !searchQuery) return;
-    searchRef.current.findPrevious(searchQuery, { caseSensitive: false, decorations: SEARCH_DECORATIONS });
+    searchRef.current.findPrevious(searchQuery, SEARCH_OPTIONS);
   };
 
   const closeSearch = () => {

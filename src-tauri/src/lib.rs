@@ -1,7 +1,7 @@
 mod git;
 mod pty;
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 // ── PTY commands ─────────────────────────────────────────────────────────────
 
@@ -138,6 +138,14 @@ fn open_url(url: String) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let icon: tauri::image::Image<'_> = tauri::image::Image::from_bytes(include_bytes!("../icons/128x128@2x.png"))
+                .expect("failed to load app icon");
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_icon(icon).ok();
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             create_session,
             write_input,
