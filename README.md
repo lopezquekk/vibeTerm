@@ -29,6 +29,11 @@ Designed for workflows where you're constantly switching between a main repo, fe
 - **Git History** — full commit log with LOCAL/pushed distinction, per-commit file list, and inline diff
 - **Image diffs** — PNG, JPG, SVG, and other images show visual before/after comparisons instead of binary output
 
+### Remote access
+- **LAN/Tailscale access** — enable a secure WebSocket server from the sidebar and connect from any device on the network
+- **QR code** — scan from your phone to open a token-authenticated session instantly
+- **Mobile control bar** — a scrollable row of touch-friendly buttons (Ctrl+C, Ctrl+D, Tab, arrows, …) replaces missing keyboard shortcuts on phones and tablets
+
 ### UI
 - **Collapsible sidebar** — docked (pushes content), floating (Arc-style overlay), or hidden
 - **Tab renaming** — double-click any context name to rename it inline
@@ -113,6 +118,30 @@ Browse your staged and unstaged changes, stage or discard individual files, and 
 
 ---
 
+## Remote access
+
+Enable the built-in server from the **Remote** toggle at the bottom of the sidebar. vibeTerm starts a token-authenticated WebSocket server and shows the local IP, Tailscale IP (if available), and a QR code.
+
+Open the URL on any device on the same network — or over Tailscale from anywhere — to get a full terminal session in the browser. No SSH, no port forwarding.
+
+<img src="screen-mobile.png" alt="vibeTerm on iPhone — mobile control bar with Ctrl+C, Tab, arrow keys" width="320" />
+
+**Mobile control bar** — because phones lack a physical keyboard, a scrollable row of buttons appears above the terminal with the most common control sequences:
+
+| Button | Sends | Effect |
+|--------|-------|--------|
+| Ctrl+C | `\x03` | Interrupt running process |
+| Ctrl+D | `\x04` | EOF / exit shell |
+| Ctrl+Z | `\x1a` | Suspend process |
+| Ctrl+L | `\x0c` | Clear screen |
+| Tab | `\x09` | Autocomplete |
+| Ctrl+A / E | `\x01` / `\x05` | Start / end of line |
+| Ctrl+U / W | `\x15` / `\x17` | Clear line / delete word |
+| ↑ / ↓ | `\x1b[A/B` | Command history |
+| Esc | `\x1b` | Escape |
+
+---
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
@@ -132,7 +161,9 @@ Browse your staged and unstaged changes, stage or discard individual files, and 
 | Frontend | React 18 + TypeScript + Vite |
 | Styling | Tailwind CSS |
 | Terminal emulator | [xterm.js](https://xtermjs.org/) v5 |
-| PTY | [portable-pty](https://crates.io/crates/portable-pty) |
+| PTY (desktop) | [portable-pty](https://crates.io/crates/portable-pty) |
+| PTY (remote) | [node-pty](https://github.com/microsoft/node-pty) via Node.js server |
+| Remote server | Express + WebSocket (`ws`) with token auth |
 | State | Zustand (persisted to localStorage) |
 | Git | `git` CLI via `std::process::Command` |
 

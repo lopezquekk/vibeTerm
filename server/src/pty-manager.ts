@@ -24,12 +24,14 @@ export function createSession(
 ): void {
   const home = os.homedir();
 
-  // Resolve shell: prefer env, then common paths, then /bin/sh
+  // Prefer system-installed shells (no external dylib deps that may be
+  // unavailable in the Tauri bundle environment). Only fall back to the
+  // user's $SHELL if none of the system paths exist.
   const shellCandidates = [
-    process.env.SHELL,
     "/bin/zsh",
     "/bin/bash",
     "/bin/sh",
+    process.env.SHELL,
   ];
   const shell = shellCandidates.find((s) => {
     if (!s) return false;
@@ -43,15 +45,17 @@ export function createSession(
     return home;
   })();
 
-  // Build a clean environment with essential variables
-  const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
-    HOME: home,
-    SHELL: shell,
-    TERM: "xterm-256color",
-    COLORTERM: "truecolor",
-    LANG: process.env.LANG ?? "en_US.UTF-8",
-  };
+  // Build a clean environment — filter undefined values and remove dylib
+  // overrides that can prevent shells from loading in the bundle context.
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined && !k.startsWith("DYLD_")) env[k] = v;
+  }
+  env.HOME = home;
+  env.SHELL = shell;
+  env.TERM = "xterm-256color";
+  env.COLORTERM = "truecolor";
+  env.LANG = process.env.LANG ?? "en_US.UTF-8";
   if (!env.PATH) {
     env.PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin";
   }

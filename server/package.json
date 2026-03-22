@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "node -e \"require('fs').chmodSync(require('path').join(__dirname, 'node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper'), 0o755)\" 2>/dev/null || true"
   },
   "dependencies": {
     "cors": "^2.8.5",
