@@ -10,7 +10,7 @@ const COLORS: Record<Toast["type"], string> = {
 const ICONS: Record<Toast["type"], string> = {
   info: "ℹ",
   warning: "⚠",
-  error: "✕",
+  error: "●",
 };
 
 function ToastItem({ toast }: { toast: Toast }) {
@@ -30,7 +30,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       <span className="flex-1 min-w-0 break-words">{toast.message}</span>
       <button
         onClick={() => dismissToast(toast.id)}
-        className="flex-shrink-0 opacity-50 hover:opacity-100 ml-1"
+        className="flex-shrink-0 opacity-50 hover:opacity-100 ml-1 p-1"
         aria-label="Dismiss"
       >
         ✕
