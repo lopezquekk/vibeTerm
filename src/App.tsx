@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import MainPanel from "./components/MainPanel";
 import StatusBar from "./components/StatusBar";
+import { ToastContainer } from "./components/ToastContainer";
 import { useTabStore } from "./store/tabStore";
 import { transport, hasToken } from "./transport/factory";
 
@@ -98,6 +99,7 @@ function App() {
         <MainPanel />
         <StatusBar />
       </div>
+      <ToastContainer />
     </div>
   );
 }
