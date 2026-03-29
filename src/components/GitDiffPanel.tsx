@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
+import { ErrorBanner } from "./ErrorBanner";
+import { useErrorHandler } from "../hooks/useErrorHandler";
 import {
   type ImageDiff,
   type DiffLine,
@@ -27,6 +29,9 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
   const [diffLines, setDiffLines] = useState<DiffLine[]>([]);
   const [imageDiff, setImageDiff] = useState<ImageDiff | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [truncated, setTruncated] = useState(false);
+  const { toastError, extractMessage } = useErrorHandler();
   const diffRef = useRef<HTMLDivElement>(null);
 
   // Poll changed files every 3 s
@@ -37,8 +42,10 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
       try {
         const list = await transport.getChangedFiles(tab.path);
         setFiles(list);
-      } catch {
+        setFetchError(null);
+      } catch (err) {
         setFiles([]);
+        setFetchError(extractMessage(err));
       }
     };
 
@@ -75,15 +82,22 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
           setImageDiff(result);
           diffRef.current?.scrollTo({ top: 0 });
         })
-        .catch(() => setImageDiff(null))
+        .catch((err) => {
+          setImageDiff(null);
+          toastError(err);
+        })
         .finally(() => setDiffLoading(false));
     } else {
       transport.getFileDiff(tab.path, selected)
         .then((raw) => {
+          if (raw.length >= 1_000_000) setTruncated(true);
           setDiffLines(parseDiffLines(raw));
           diffRef.current?.scrollTo({ top: 0 });
         })
-        .catch(() => setDiffLines([]))
+        .catch((err) => {
+          setDiffLines([]);
+          toastError(err);
+        })
         .finally(() => setDiffLoading(false));
     }
   }, [tab?.path, selected]);
@@ -98,6 +112,20 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
 
   return (
     <div className="flex h-full overflow-hidden">
+      {fetchError && (
+        <ErrorBanner
+          message={fetchError}
+          type="error"
+          onDismiss={() => setFetchError(null)}
+        />
+      )}
+      {truncated && (
+        <ErrorBanner
+          message="Diff output truncated — file exceeds 1 MB. Use the terminal for the full diff."
+          type="warning"
+          onDismiss={() => setTruncated(false)}
+        />
+      )}
       {/* File list sidebar */}
       <div className="w-56 flex-shrink-0 border-r border-border overflow-y-auto bg-sidebar">
         <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 border-b border-border">
