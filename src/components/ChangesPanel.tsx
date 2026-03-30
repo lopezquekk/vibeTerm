@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useGitWatch } from "../hooks/useGitWatch";
 import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 import {
@@ -135,7 +136,6 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
   const diffRef = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = useCallback(async () => {
     if (!tab?.path) return;
@@ -148,12 +148,8 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
     }
   }, [tab?.path]);
 
-  // Poll every 3 s
-  useEffect(() => {
-    refresh();
-    pollRef.current = setInterval(refresh, 3000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
+  useGitWatch(tabId, tab?.path ?? null, refresh);
 
   // Fetch diff when selection changes
   useEffect(() => {
