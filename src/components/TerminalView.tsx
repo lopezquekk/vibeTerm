@@ -6,6 +6,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import "@xterm/xterm/css/xterm.css";
 import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
+import { ErrorBanner } from "./ErrorBanner";
 
 interface Props {
   tabId: string;
@@ -52,6 +53,7 @@ export default function TerminalView({ tabId, path }: Props) {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [ptyError, setPtyError] = useState<string | null>(null);
 
   // Focus the input after React has committed the render — reliable regardless
   // of where setSearchOpen(true) was called from (xterm handler, window handler, etc.)
@@ -164,7 +166,9 @@ export default function TerminalView({ tabId, path }: Props) {
     const initCols = Math.max(term.cols, 80);
     const initRows = Math.max(term.rows, 24);
     transport.ptyCreate(tabId, path, initCols, initRows).catch((err) => {
-      term.writeln(`\r\n\x1b[31mConnection error: ${err?.message ?? err}\x1b[0m`);
+      const msg = err?.message ?? String(err);
+      term.writeln(`\r\n\x1b[31mConnection error: ${msg}\x1b[0m`);
+      setPtyError(msg);
       console.error(err);
     });
 
@@ -256,6 +260,14 @@ export default function TerminalView({ tabId, path }: Props) {
   };
 
   return (
+    <div className="flex flex-col h-full">
+      {ptyError && (
+        <ErrorBanner
+          message={`Terminal connection failed: ${ptyError}`}
+          type="error"
+          onDismiss={() => setPtyError(null)}
+        />
+      )}
     <div className="h-full w-full bg-surface p-1 relative flex flex-col">
       {/* Search bar — floats over the terminal at the top-right */}
       {searchOpen && (
@@ -316,6 +328,7 @@ export default function TerminalView({ tabId, path }: Props) {
       {/* xterm.js measures this inner div — keeping it padding-free ensures
           FitAddon computes the exact available columns. */}
       <div ref={containerRef} className="flex-1 min-h-0 w-full" />
+    </div>
     </div>
   );
 }
