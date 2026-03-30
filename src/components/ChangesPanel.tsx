@@ -12,6 +12,8 @@ import {
   DiffTable,
   ImageDiffView,
 } from "../utils/diff";
+import { ErrorBanner } from "./ErrorBanner";
+import { useErrorHandler } from "../hooks/useErrorHandler";
 
 interface FileEntry {
   path: string;
@@ -123,6 +125,7 @@ function SectionHeader({
 export default function ChangesPanel({ tabId }: { tabId: string }) {
   const tab = useTabStore((s) => s.tabs.find((t) => t.id === tabId));
 
+  const { toastError } = useErrorHandler();
   const [status, setStatus] = useState<WorkdirStatus>({ staged: [], unstaged: [] });
   const [selection, setSelection] = useState<Selection>(null);
   const [diffLines, setDiffLines] = useState<DiffLine[]>([]);
@@ -139,7 +142,8 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
     try {
       const s = await transport.getWorkdirStatus(tab.path);
       setStatus(s);
-    } catch {
+    } catch (err) {
+      toastError(err);
       setStatus({ staged: [], unstaged: [] });
     }
   }, [tab?.path]);
@@ -166,14 +170,14 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
     if (isImageFile(selection.path)) {
       transport.getImageDiff(tab.path, selection.path)
         .then((d) => { setImageDiff(d); diffRef.current?.scrollTo({ top: 0 }); })
-        .catch(() => setImageDiff(null))
+        .catch((err) => { toastError(err); setImageDiff(null); })
         .finally(() => setDiffLoading(false));
     } else {
       (selection.area === "staged"
         ? transport.getStagedFileDiff(tab.path, selection.path)
         : transport.getFileDiff(tab.path, selection.path))
         .then((raw) => { setDiffLines(parseDiffLines(raw)); diffRef.current?.scrollTo({ top: 0 }); })
-        .catch(() => setDiffLines([]))
+        .catch((err) => { toastError(err); setDiffLines([]); })
         .finally(() => setDiffLoading(false));
     }
   }, [tab?.path, selection?.path, selection?.area]);
@@ -188,7 +192,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
       else if (action === "unstage" && file) await transport.unstageFile(tab.path, file);
       else if (action === "discard" && file) await transport.discardFile(tab.path, file);
       else if (action === "stageAll")        await transport.stageAll(tab.path);
-    } catch { /* ignore */ }
+    } catch (err) { toastError(err); }
     await refresh();
   };
 
@@ -311,7 +315,11 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
             className="w-full bg-zinc-900 border border-border rounded text-xs text-zinc-200 placeholder-zinc-600 px-2 py-1.5 resize-none focus:outline-none focus:border-accent/60 font-sans"
           />
           {commitError && (
-            <p className="text-[10px] text-red-400 leading-snug">{commitError}</p>
+            <ErrorBanner
+              message={commitError}
+              type="error"
+              onDismiss={() => setCommitError(null)}
+            />
           )}
           <button
             onClick={handleCommit}
