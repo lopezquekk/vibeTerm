@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import QRCode from "qrcode";
 import { useTabStore } from "../store/tabStore";
+import { ErrorBanner } from "./ErrorBanner";
 
 interface ServerInfo {
   port: number; token: string; local_ip: string; tailscale_ip: string | null;
@@ -81,7 +82,13 @@ export default function RemoteAccessPanel() {
         </button>
       </div>
 
-      {error && <p className="text-[10px] text-red-400 mb-1">{error}</p>}
+      {error && (
+        <ErrorBanner
+          message={error}
+          type="error"
+          onDismiss={() => setError(null)}
+        />
+      )}
 
       {on && info && (
         <div className="space-y-1 text-[10px]">
