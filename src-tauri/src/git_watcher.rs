@@ -37,7 +37,6 @@ fn is_relevant(event: &Event) -> bool {
                     || s.contains("/index")
                     || s.contains("/refs/")
                     || s.contains("COMMIT_EDITMSG")
-                    || s.contains("MERGE_HEAD")
             })
         }
         _ => false,
@@ -45,21 +44,25 @@ fn is_relevant(event: &Event) -> bool {
 }
 
 #[tauri::command]
-pub fn watch_git_dir(tab_id: String, path: String, app: AppHandle) {
+pub fn watch_git_dir(tab_id: String, path: String, app: AppHandle) -> Result<(), String> {
     let repo_root = match find_git_root(&path) {
         Some(r) => r,
-        None => return, // not a git repo; frontend falls back to polling
+        None => {
+            // Not a git repo — signal frontend to fall back to polling
+            let _ = app.emit("git-watch-failed", &path);
+            return Ok(());
+        }
     };
     let repo_key = repo_root.to_string_lossy().to_string();
 
-    let mut watchers = WATCHERS.lock().unwrap();
+    let mut watchers = WATCHERS.lock().map_err(|e| format!("lock poisoned: {e}"))?;
 
     // If already watching this repo, just register the additional tab
     if let Some(watched) = watchers.get_mut(&repo_key) {
         if !watched.tab_ids.contains(&tab_id) {
             watched.tab_ids.push(tab_id);
         }
-        return;
+        return Ok(());
     }
 
     let app_clone = app.clone();
@@ -78,7 +81,7 @@ pub fn watch_git_dir(tab_id: String, path: String, app: AppHandle) {
         Err(e) => {
             eprintln!("git_watcher: failed to create watcher: {e}");
             let _ = app.emit("git-watch-failed", &repo_key);
-            return;
+            return Ok(());
         }
     };
 
@@ -86,7 +89,7 @@ pub fn watch_git_dir(tab_id: String, path: String, app: AppHandle) {
     if let Err(e) = watcher.watch(Path::new(&git_dir), RecursiveMode::Recursive) {
         eprintln!("git_watcher: failed to watch {git_dir:?}: {e}");
         let _ = app.emit("git-watch-failed", &repo_key);
-        return;
+        return Ok(());
     }
 
     watchers.insert(
@@ -96,14 +99,16 @@ pub fn watch_git_dir(tab_id: String, path: String, app: AppHandle) {
             tab_ids: vec![tab_id],
         },
     );
+    Ok(())
 }
 
 #[tauri::command]
-pub fn unwatch_git_dir(tab_id: String) {
-    let mut watchers = WATCHERS.lock().unwrap();
+pub fn unwatch_git_dir(tab_id: String) -> Result<(), String> {
+    let mut watchers = WATCHERS.lock().map_err(|e| format!("lock poisoned: {e}"))?;
     // Remove the tab_id from every repo; drop repos with no remaining tabs
     watchers.retain(|_, watched| {
         watched.tab_ids.retain(|id| id != &tab_id);
         !watched.tab_ids.is_empty()
     });
+    Ok(())
 }
