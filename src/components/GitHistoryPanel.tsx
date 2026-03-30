@@ -12,6 +12,7 @@ import {
   DiffTable,
   ImageDiffView,
 } from "../utils/diff";
+import { useErrorHandler } from "../hooks/useErrorHandler";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ interface CommitFile {
 export default function GitHistoryPanel({ tabId }: { tabId: string }) {
   const tab = useTabStore((s) => s.tabs.find((t) => t.id === tabId));
 
+  const { toastError } = useErrorHandler();
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [files, setFiles] = useState<CommitFile[]>([]);
@@ -51,12 +53,12 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
     const load = () =>
       transport.getGitLog(tab.path)
         .then(setCommits)
-        .catch(() => setCommits([]));
+        .catch((err) => { toastError(err); setCommits([]); });
 
     setLoading(true);
     transport.getGitLog(tab.path)
       .then((list) => { setCommits(list); setLoading(false); })
-      .catch(() => { setCommits([]); setLoading(false); });
+      .catch((err) => { toastError(err); setCommits([]); setLoading(false); });
 
     const id = setInterval(load, 5000);
     return () => clearInterval(id);
@@ -82,7 +84,7 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
         setFiles(list);
         if (list.length > 0) setSelectedFile(list[0].path);
       })
-      .catch(() => setFiles([]));
+      .catch((err) => { toastError(err); setFiles([]); });
   }, [tab?.path, selectedHash]);
 
   // ── Fetch diff for selected file in commit ────────────────────────────────
@@ -95,12 +97,12 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
     if (isImageFile(selectedFile)) {
       transport.getCommitImageDiff(tab.path, selectedHash, selectedFile)
         .then((d) => { setImageDiff(d); diffRef.current?.scrollTo({ top: 0 }); })
-        .catch(() => setImageDiff(null))
+        .catch((err) => { toastError(err); setImageDiff(null); })
         .finally(() => setDiffLoading(false));
     } else {
       transport.getCommitFileDiff(tab.path, selectedHash, selectedFile)
         .then((raw) => { setDiffLines(parseDiffLines(raw)); diffRef.current?.scrollTo({ top: 0 }); })
-        .catch(() => setDiffLines([]))
+        .catch((err) => { toastError(err); setDiffLines([]); })
         .finally(() => setDiffLoading(false));
     }
   }, [tab?.path, selectedHash, selectedFile]);
