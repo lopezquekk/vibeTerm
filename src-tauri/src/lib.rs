@@ -1,4 +1,5 @@
 mod git;
+mod git_watcher;
 mod pty;
 mod remote_server;
 
@@ -180,6 +181,8 @@ pub fn run() {
             create_branch,
             open_url,
             get_worktree_main,
+            git_watcher::watch_git_dir,
+            git_watcher::unwatch_git_dir,
             remote_server::start_remote_server,
             remote_server::stop_remote_server,
             remote_server::get_remote_server_status,

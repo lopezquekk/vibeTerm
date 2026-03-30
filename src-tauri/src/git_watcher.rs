@@ -1,0 +1,109 @@
+// src-tauri/src/git_watcher.rs
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use tauri::{AppHandle, Emitter};
+
+struct WatchedRepo {
+    _watcher: RecommendedWatcher, // kept alive by owning this struct
+    tab_ids: Vec<String>,
+}
+
+static WATCHERS: Lazy<Mutex<HashMap<String, WatchedRepo>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// Walk up from `path` until we find a directory containing `.git`.
+fn find_git_root(path: &str) -> Option<PathBuf> {
+    let mut current = PathBuf::from(path);
+    loop {
+        if current.join(".git").exists() {
+            return Some(current);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
+/// Returns true for events that mean the working tree or index changed.
+fn is_relevant(event: &Event) -> bool {
+    match event.kind {
+        EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
+            event.paths.iter().any(|p| {
+                let s = p.to_string_lossy();
+                s.contains("HEAD")
+                    || s.contains("/index")
+                    || s.contains("/refs/")
+                    || s.contains("COMMIT_EDITMSG")
+                    || s.contains("MERGE_HEAD")
+            })
+        }
+        _ => false,
+    }
+}
+
+#[tauri::command]
+pub fn watch_git_dir(tab_id: String, path: String, app: AppHandle) {
+    let repo_root = match find_git_root(&path) {
+        Some(r) => r,
+        None => return, // not a git repo; frontend falls back to polling
+    };
+    let repo_key = repo_root.to_string_lossy().to_string();
+
+    let mut watchers = WATCHERS.lock().unwrap();
+
+    // If already watching this repo, just register the additional tab
+    if let Some(watched) = watchers.get_mut(&repo_key) {
+        if !watched.tab_ids.contains(&tab_id) {
+            watched.tab_ids.push(tab_id);
+        }
+        return;
+    }
+
+    let app_clone = app.clone();
+    let repo_key_clone = repo_key.clone();
+
+    let handler = move |res: notify::Result<Event>| {
+        if let Ok(event) = res {
+            if is_relevant(&event) {
+                let _ = app_clone.emit("git-changed", &repo_key_clone);
+            }
+        }
+    };
+
+    let mut watcher = match RecommendedWatcher::new(handler, Config::default()) {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("git_watcher: failed to create watcher: {e}");
+            let _ = app.emit("git-watch-failed", &repo_key);
+            return;
+        }
+    };
+
+    let git_dir = repo_root.join(".git");
+    if let Err(e) = watcher.watch(Path::new(&git_dir), RecursiveMode::Recursive) {
+        eprintln!("git_watcher: failed to watch {git_dir:?}: {e}");
+        let _ = app.emit("git-watch-failed", &repo_key);
+        return;
+    }
+
+    watchers.insert(
+        repo_key,
+        WatchedRepo {
+            _watcher: watcher,
+            tab_ids: vec![tab_id],
+        },
+    );
+}
+
+#[tauri::command]
+pub fn unwatch_git_dir(tab_id: String) {
+    let mut watchers = WATCHERS.lock().unwrap();
+    // Remove the tab_id from every repo; drop repos with no remaining tabs
+    watchers.retain(|_, watched| {
+        watched.tab_ids.retain(|id| id != &tab_id);
+        !watched.tab_ids.is_empty()
+    });
+}
