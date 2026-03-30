@@ -1,3 +1,15 @@
+// Provide an in-memory localStorage so Zustand persist middleware works in jsdom
+const _localStorageStore: Record<string, string> = {};
+Object.defineProperty(window, "localStorage", {
+  value: {
+    getItem: (key: string) => _localStorageStore[key] ?? null,
+    setItem: (key: string, value: string) => { _localStorageStore[key] = value; },
+    removeItem: (key: string) => { delete _localStorageStore[key]; },
+    clear: () => { Object.keys(_localStorageStore).forEach((k) => delete _localStorageStore[k]); },
+  },
+  writable: true,
+});
+
 // Mock Tauri APIs — they don't exist in jsdom
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
