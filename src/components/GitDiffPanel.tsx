@@ -3,6 +3,7 @@ import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 import { ErrorBanner } from "./ErrorBanner";
 import { useErrorHandler } from "../hooks/useErrorHandler";
+import { useGitWatch } from "../hooks/useGitWatch";
 import {
   type ImageDiff,
   type DiffLine,
@@ -34,25 +35,20 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
   const { toastError, extractMessage } = useErrorHandler();
   const diffRef = useRef<HTMLDivElement>(null);
 
-  // Poll changed files every 3 s
-  useEffect(() => {
+  const fetchFiles = async () => {
     if (!tab?.path) return;
+    try {
+      const list = await transport.getChangedFiles(tab.path);
+      setFiles(list);
+      setFetchError(null);
+    } catch (err) {
+      setFiles([]);
+      setFetchError(extractMessage(err));
+    }
+  };
 
-    const fetch = async () => {
-      try {
-        const list = await transport.getChangedFiles(tab.path);
-        setFiles(list);
-        setFetchError(null);
-      } catch (err) {
-        setFiles([]);
-        setFetchError(extractMessage(err));
-      }
-    };
-
-    fetch();
-    const id = setInterval(fetch, 3000);
-    return () => clearInterval(id);
-  }, [tab?.path]);
+  useEffect(() => { fetchFiles(); }, [tab?.path]);
+  useGitWatch(tabId, tab?.path ?? null, fetchFiles);
 
   // Auto-select first file; deselect when list empties
   useEffect(() => {
