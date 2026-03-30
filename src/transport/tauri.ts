@@ -59,4 +59,10 @@ export class TauriTransport implements Transport {
   createBranch(path: string, branch: string): Promise<void> { return invoke("create_branch", { path, branch }); }
   getWorktreeMain(path: string): Promise<string | null> { return invoke("get_worktree_main", { path }); }
   openUrl(url: string): void { invoke("open_url", { url }).catch(console.error); }
+  watchGitDir(tabId: string, path: string): Promise<void> {
+    return invoke("watch_git_dir", { tabId, path });
+  }
+  unwatchGitDir(tabId: string): Promise<void> {
+    return invoke("unwatch_git_dir", { tabId });
+  }
 }

@@ -84,6 +84,10 @@ export interface Transport {
   // Worktrees
   getWorktreeMain(path: string): Promise<string | null>;
 
+  // Git watching (Tauri only; no-op in WebSocket mode)
+  watchGitDir(tabId: string, path: string): Promise<void>;
+  unwatchGitDir(tabId: string): Promise<void>;
+
   // System
   openUrl(url: string): void;
 }

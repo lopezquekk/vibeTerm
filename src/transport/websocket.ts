@@ -160,4 +160,6 @@ export class WebSocketTransport implements Transport {
   switchBranch(p: string, b: string): Promise<void>{ return this.post("switch-branch", { path: p, branch: b }); }
   createBranch(p: string, b: string): Promise<void>{ return this.post("create-branch", { path: p, branch: b }); }
   openUrl(url: string): void { window.open(url, "_blank"); }
+  watchGitDir(_tabId: string, _path: string): Promise<void> { return Promise.resolve(); }
+  unwatchGitDir(_tabId: string): Promise<void> { return Promise.resolve(); }
 }
