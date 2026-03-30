@@ -18,9 +18,8 @@ function App() {
     }
   }, []);
 
-  // Eagerly populate git status + worktree info for all persisted tabs on startup (Tauri only)
+  // On startup: eagerly populate git status + worktree info, and register watchers (Tauri only)
   useEffect(() => {
-    if (!IS_TAURI) return;
     for (const tab of tabs) {
       transport.getGitStatus(tab.path)
         .then((git) => updateTab(tab.id, { git }))
@@ -28,7 +27,18 @@ function App() {
       transport.getWorktreeMain(tab.path)
         .then((main) => updateTab(tab.id, { worktreeOf: main ?? null }))
         .catch(() => {});
+      if (IS_TAURI) {
+        transport.watchGitDir(tab.id, tab.path).catch(() => {});
+      }
     }
+    // Cleanup: unwatch all tabs on unmount
+    return () => {
+      if (IS_TAURI) {
+        for (const tab of tabs) {
+          transport.unwatchGitDir(tab.id).catch(() => {});
+        }
+      }
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cmd+\ → toggle hidden ↔ docked (or floating if was floating)
