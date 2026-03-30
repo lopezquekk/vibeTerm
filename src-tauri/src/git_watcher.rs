@@ -3,12 +3,12 @@ use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watche
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
 struct WatchedRepo {
     _watcher: RecommendedWatcher, // kept alive by owning this struct
-    tab_ids: Vec<String>,
+    tab_ids: Arc<Mutex<Vec<String>>>,
 }
 
 static WATCHERS: Lazy<Mutex<HashMap<String, WatchedRepo>>> =
@@ -59,19 +59,26 @@ pub fn watch_git_dir(tab_id: String, path: String, app: AppHandle) -> Result<(),
 
     // If already watching this repo, just register the additional tab
     if let Some(watched) = watchers.get_mut(&repo_key) {
-        if !watched.tab_ids.contains(&tab_id) {
-            watched.tab_ids.push(tab_id);
+        if let Ok(mut ids) = watched.tab_ids.lock() {
+            if !ids.contains(&tab_id) {
+                ids.push(tab_id);
+            }
         }
         return Ok(());
     }
 
     let app_clone = app.clone();
-    let repo_key_clone = repo_key.clone();
+    let tab_ids_arc: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+    let tab_ids_clone = Arc::clone(&tab_ids_arc);
 
     let handler = move |res: notify::Result<Event>| {
         if let Ok(event) = res {
             if is_relevant(&event) {
-                let _ = app_clone.emit("git-changed", &repo_key_clone);
+                if let Ok(ids) = tab_ids_clone.lock() {
+                    for tab_id in ids.iter() {
+                        let _ = app_clone.emit(&format!("git-changed-{tab_id}"), ());
+                    }
+                }
             }
         }
     };
@@ -92,11 +99,13 @@ pub fn watch_git_dir(tab_id: String, path: String, app: AppHandle) -> Result<(),
         return Ok(());
     }
 
+    tab_ids_arc.lock().unwrap().push(tab_id);
+
     watchers.insert(
         repo_key,
         WatchedRepo {
             _watcher: watcher,
-            tab_ids: vec![tab_id],
+            tab_ids: tab_ids_arc,
         },
     );
     Ok(())
@@ -107,8 +116,12 @@ pub fn unwatch_git_dir(tab_id: String) -> Result<(), String> {
     let mut watchers = WATCHERS.lock().map_err(|e| format!("lock poisoned: {e}"))?;
     // Remove the tab_id from every repo; drop repos with no remaining tabs
     watchers.retain(|_, watched| {
-        watched.tab_ids.retain(|id| id != &tab_id);
-        !watched.tab_ids.is_empty()
+        if let Ok(mut ids) = watched.tab_ids.lock() {
+            ids.retain(|id| id != &tab_id);
+            !ids.is_empty()
+        } else {
+            true // keep on lock failure to avoid accidentally dropping a watcher
+        }
     });
     Ok(())
 }

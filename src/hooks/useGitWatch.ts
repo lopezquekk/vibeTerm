@@ -27,8 +27,6 @@ export function useGitWatch(
     if (!cwd) return;
 
     let pollInterval: ReturnType<typeof setInterval> | null = null;
-    let unlistenChanged: (() => void) | null = null;
-    let unlistenFailed: (() => void) | null = null;
     let destroyed = false;
 
     const startPolling = () => {
@@ -51,28 +49,34 @@ export function useGitWatch(
       // Primary: Tauri fs.watch + 30s heartbeat
       transport.watchGitDir(tabId, cwd).catch(() => {/* watcher failed — Rust emits git-watch-failed */});
 
-      listen<string>("git-changed", () => {
+      const pChanged = listen<void>(`git-changed-${tabId}`, () => {
         if (!destroyed) onChangedRef.current();
-      }).then((fn) => { unlistenChanged = fn; });
+      });
 
-      listen<string>("git-watch-failed", () => {
+      const pFailed = listen<void>("git-watch-failed", () => {
         if (!destroyed) startPolling();
-      }).then((fn) => { unlistenFailed = fn; });
+      });
 
       // Heartbeat: catches edge cases where fs events are missed
       startPolling();
+
+      return () => {
+        destroyed = true;
+        if (pollInterval) clearInterval(pollInterval);
+        pChanged.then((fn) => fn());
+        pFailed.then((fn) => fn());
+        document.removeEventListener("visibilitychange", onVisibility);
+        transport.unwatchGitDir(tabId).catch(() => {});
+      };
     } else {
       // WebSocket mode: polling only
       startPolling();
-    }
 
-    return () => {
-      destroyed = true;
-      if (pollInterval) clearInterval(pollInterval);
-      unlistenChanged?.();
-      unlistenFailed?.();
-      document.removeEventListener("visibilitychange", onVisibility);
-      if (IS_TAURI) transport.unwatchGitDir(tabId).catch(() => {});
-    };
+      return () => {
+        destroyed = true;
+        if (pollInterval) clearInterval(pollInterval);
+        document.removeEventListener("visibilitychange", onVisibility);
+      };
+    }
   }, [tabId, cwd]);
 }
