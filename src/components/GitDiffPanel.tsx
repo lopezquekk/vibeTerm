@@ -111,7 +111,7 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex flex-col h-full">
       {fetchError && (
         <ErrorBanner
           message={fetchError}
@@ -126,60 +126,62 @@ export default function GitDiffPanel({ tabId }: { tabId: string }) {
           onDismiss={() => setTruncated(false)}
         />
       )}
-      {/* File list sidebar */}
-      <div className="w-56 flex-shrink-0 border-r border-border overflow-y-auto bg-sidebar">
-        <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 border-b border-border">
-          {files.length} changed file{files.length !== 1 ? "s" : ""}
-        </div>
-        {files.map((f) => {
-          const meta = statusMeta(f.status);
-          const isActive = f.path === selected;
-          return (
-            <button
-              key={f.path}
-              onClick={() => setSelected(f.path)}
-              className={`w-full text-left px-3 py-1.5 flex items-start gap-2 transition-colors group ${
-                isActive
-                  ? "bg-accent/15 text-white"
-                  : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-              }`}
-            >
-              <span
-                className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${meta.bg} ${meta.text}`}
+      <div className="flex flex-1 overflow-hidden">
+        {/* File list sidebar */}
+        <div className="w-56 flex-shrink-0 border-r border-border overflow-y-auto bg-sidebar">
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 border-b border-border">
+            {files.length} changed file{files.length !== 1 ? "s" : ""}
+          </div>
+          {files.map((f) => {
+            const meta = statusMeta(f.status);
+            const isActive = f.path === selected;
+            return (
+              <button
+                key={f.path}
+                onClick={() => setSelected(f.path)}
+                className={`w-full text-left px-3 py-1.5 flex items-start gap-2 transition-colors group ${
+                  isActive
+                    ? "bg-accent/15 text-white"
+                    : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                }`}
               >
-                {meta.label}
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs truncate leading-tight">
-                  {basename(f.path)}
+                <span
+                  className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${meta.bg} ${meta.text}`}
+                >
+                  {meta.label}
                 </span>
-                {dirname(f.path) && (
-                  <span className="block text-[10px] text-zinc-600 truncate leading-tight mt-0.5">
-                    {dirname(f.path)}
+                <span className="min-w-0">
+                  <span className="block text-xs truncate leading-tight">
+                    {basename(f.path)}
                   </span>
-                )}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+                  {dirname(f.path) && (
+                    <span className="block text-[10px] text-zinc-600 truncate leading-tight mt-0.5">
+                      {dirname(f.path)}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-      {/* Diff viewer */}
-      <div ref={diffRef} className="flex-1 overflow-auto font-mono text-xs">
-        {diffLoading ? (
-          <div className="flex items-center justify-center h-full text-zinc-500 text-sm font-sans">
-            Loading…
-          </div>
-        ) : imageDiff ? (
-          <ImageDiffView diff={imageDiff} />
-        ) : diffLines.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-zinc-600 font-sans">
-            <span className="text-2xl">✓</span>
-            <span className="text-sm">No diff available</span>
-          </div>
-        ) : (
-          <DiffTable lines={diffLines} />
-        )}
+        {/* Diff viewer */}
+        <div ref={diffRef} className="flex-1 overflow-auto font-mono text-xs">
+          {diffLoading ? (
+            <div className="flex items-center justify-center h-full text-zinc-500 text-sm font-sans">
+              Loading…
+            </div>
+          ) : imageDiff ? (
+            <ImageDiffView diff={imageDiff} />
+          ) : diffLines.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-zinc-600 font-sans">
+              <span className="text-2xl">✓</span>
+              <span className="text-sm">No diff available</span>
+            </div>
+          ) : (
+            <DiffTable lines={diffLines} />
+          )}
+        </div>
       </div>
     </div>
   );
