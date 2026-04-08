@@ -9,7 +9,7 @@ import { transport, hasToken } from "./transport/factory";
 const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
 
 function App() {
-  const { tabs, addTab, sidebarMode, setSidebarMode, updateTab } = useTabStore();
+  const { tabs, addTab, sidebarMode, setSidebarMode, updateTab, activeTabId } = useTabStore();
 
   // Create default tab on first launch
   useEffect(() => {
@@ -52,6 +52,19 @@ function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [sidebarMode, setSidebarMode]);
+
+  // Cmd+N → open new terminal in the current tab's directory
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === "n") {
+        e.preventDefault();
+        const activeTab = tabs.find((t) => t.id === activeTabId);
+        addTab({ alias: "Terminal", path: activeTab?.path ?? "~" });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [tabs, activeTabId, addTab]);
 
   const isFloating = sidebarMode === "floating";
   const isHidden = sidebarMode === "hidden";
