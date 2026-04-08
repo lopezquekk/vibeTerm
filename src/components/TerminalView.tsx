@@ -116,7 +116,7 @@ export default function TerminalView({ tabId, path }: Props) {
       },
       fontFamily: "JetBrains Mono, Fira Code, Cascadia Code, monospace",
       fontSize: 13,
-      lineHeight: 1.4,
+      lineHeight: 1.0,
       cursorBlink: true,
       scrollback: 5000,
     });

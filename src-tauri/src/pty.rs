@@ -56,10 +56,19 @@ pub fn create_session(
     for (k, v) in std::env::vars() {
         cmd.env(k, v);
     }
-    // Override terminal type so TUI apps (claude, vim, htop…) know they're
-    // in a full-featured xterm-compatible terminal with 24-bit color.
+    // Override terminal capabilities so TUI apps (claude, vim, htop…) work correctly.
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    // Identify ourselves so apps like Claude CLI can adapt their rendering.
+    cmd.env("TERM_PROGRAM", "vibeTerm");
+    // Ensure UTF-8 locale is set — needed for correct wide-char/emoji width calculation.
+    // Only override if not already set by the user's environment.
+    if std::env::var("LANG").is_err() {
+        cmd.env("LANG", "en_US.UTF-8");
+    }
+    if std::env::var("LC_ALL").is_err() {
+        cmd.env("LC_CTYPE", "en_US.UTF-8");
+    }
 
     // Spawn shell on slave side — must happen before taking reader/writer
     let _child = pair
