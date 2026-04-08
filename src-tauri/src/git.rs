@@ -435,7 +435,7 @@ pub fn create_branch(repo_path: &str, branch: &str) -> Result<(), String> {
 
 pub fn get_workdir_status(repo_path: &str) -> Result<WorkdirStatus, String> {
     let out = Command::new("git")
-        .args(["-C", repo_path, "status", "--porcelain"])
+        .args(["-C", repo_path, "status", "--porcelain", "--untracked-files=all"])
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -448,7 +448,7 @@ pub fn get_workdir_status(repo_path: &str) -> Result<WorkdirStatus, String> {
         }
         let x = line.chars().nth(0).unwrap_or(' ');
         let y = line.chars().nth(1).unwrap_or(' ');
-        let raw = line[3..].trim();
+        let raw = line[3..].trim().trim_end_matches('/');
         let path = if raw.contains(" -> ") {
             raw.split(" -> ").last().unwrap_or(raw).to_string()
         } else {

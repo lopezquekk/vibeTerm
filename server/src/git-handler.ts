@@ -89,14 +89,16 @@ export function getImageDiff(repoPath: string, file: string) {
 }
 
 export function getWorkdirStatus(repoPath: string) {
-  const out = run(["status", "--porcelain"], repoPath);
+  const out = run(["status", "--porcelain", "--untracked-files=all"], repoPath);
   const lines = out.trim().split("\n").filter(Boolean);
   const staged: { path: string; status: string }[] = [];
   const unstaged: { path: string; status: string }[] = [];
   for (const line of lines) {
-    const x = line[0], y = line[1], p = line.slice(3);
+    const x = line[0], y = line[1];
+    const raw = line.slice(3).trimEnd().replace(/\/$/, "");
+    const p = raw.includes(" -> ") ? raw.split(" -> ").pop()! : raw;
     if (x !== " " && x !== "?") staged.push({ path: p, status: x });
-    if (y !== " ") unstaged.push({ path: p, status: y === "?" ? "?" : y });
+    if (y !== " ") unstaged.push({ path: p, status: x === "?" && y === "?" ? "??" : y });
   }
   return { staged, unstaged };
 }
