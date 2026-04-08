@@ -3,8 +3,9 @@ use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::{
     collections::HashMap,
     io::{Read, Write},
-    sync::Mutex,
+    sync::{mpsc, Mutex},
     thread,
+    time::Duration,
 };
 use tauri::{AppHandle, Emitter};
 
@@ -89,33 +90,47 @@ pub fn create_session(
     let tab_id_reader = tab_id.clone();
 
     // Reader thread: stream PTY output → frontend via Tauri event.
-    // Chunks are accumulated for up to BATCH_INTERVAL (10ms) or MAX_ACCUM (64KB)
-    // before emitting a single event, reducing IPC crossings ~50x on high-throughput
-    // output (e.g. `cat large_file`).
+    //
+    // Design: an inner thread does the blocking read() and forwards raw chunks
+    // over an mpsc channel. The outer loop uses recv_timeout(10ms) so the
+    // accumulator is always flushed within 10ms of the last byte arriving —
+    // even when the PTY goes idle (e.g. shell prompt, Claude waiting for input).
+    //
+    // Without the timeout, a plain blocking read() only checks elapsed time
+    // when new data arrives, so the last chunk of a burst (clear, TUI redraw)
+    // would stay buffered forever until the next keystroke.
     thread::spawn(move || {
-        let mut buf = [0u8; 4096];
+        const BATCH_INTERVAL: Duration = Duration::from_millis(10);
+        const MAX_ACCUM: usize = 65536; // also flush early if > 64 KB accumulated
+
         let mut seen_urls = std::collections::HashSet::<String>::new();
         let mut accum: Vec<u8> = Vec::with_capacity(65536);
-        let mut last_emit = std::time::Instant::now();
-        const BATCH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(10);
-        const MAX_ACCUM: usize = 65536; // flush early if > 64KB accumulated
+
+        let (tx, rx) = mpsc::channel::<Option<Vec<u8>>>();
+
+        // Inner thread: blocking reads, sends raw chunks (None = EOF/error)
+        thread::spawn(move || {
+            let mut buf = [0u8; 4096];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) | Err(_) => { tx.send(None).ok(); break; }
+                    Ok(n) => {
+                        if tx.send(Some(buf[..n].to_vec())).is_err() { break; }
+                    }
+                }
+            }
+        });
+
+        let emit = |data: &[u8]| {
+            let s = String::from_utf8_lossy(data).to_string();
+            let _ = app.emit(&format!("pty-output-{}", tab_id_reader), s);
+        };
 
         loop {
-            match reader.read(&mut buf) {
-                Ok(0) | Err(_) => {
-                    // Flush remaining data before exiting
-                    if !accum.is_empty() {
-                        let data = String::from_utf8_lossy(&accum).to_string();
-                        let _ = app.emit(&format!("pty-output-{}", tab_id_reader), data);
-                    }
-                    break;
-                }
-                Ok(n) => {
-                    let chunk = &buf[..n];
-
-                    // Per-chunk side-channel parsing (OSC7, local URLs) runs before
-                    // accumulation so these events fire promptly regardless of batch timing.
-                    let chunk_str = String::from_utf8_lossy(chunk);
+            match rx.recv_timeout(BATCH_INTERVAL) {
+                Ok(Some(chunk)) => {
+                    // Side-channel parsing runs per-chunk so OSC7/URL events fire promptly.
+                    let chunk_str = String::from_utf8_lossy(&chunk);
                     if let Some(path) = extract_osc7_path(&chunk_str) {
                         let _ = app.emit(&format!("cwd-changed-{}", tab_id_reader), path);
                     }
@@ -124,16 +139,25 @@ pub fn create_session(
                             let _ = app.emit(&format!("port-detected-{}", tab_id_reader), url);
                         }
                     }
-
-                    accum.extend_from_slice(chunk);
-
-                    if accum.len() >= MAX_ACCUM || last_emit.elapsed() >= BATCH_INTERVAL {
-                        let data = String::from_utf8_lossy(&accum).to_string();
-                        let _ = app.emit(&format!("pty-output-{}", tab_id_reader), data);
+                    accum.extend_from_slice(&chunk);
+                    if accum.len() >= MAX_ACCUM {
+                        emit(&accum);
                         accum.clear();
-                        last_emit = std::time::Instant::now();
                     }
                 }
+                Ok(None) => {
+                    // EOF: flush remaining data and exit
+                    if !accum.is_empty() { emit(&accum); }
+                    break;
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    // 10 ms with no new data → flush so the screen updates promptly
+                    if !accum.is_empty() {
+                        emit(&accum);
+                        accum.clear();
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
             }
         }
     });
