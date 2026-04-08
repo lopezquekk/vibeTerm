@@ -32,7 +32,7 @@ export type SidebarMode = "docked" | "floating" | "hidden";
 interface TabStore {
   tabs: Tab[];
   activeTabId: string | null;
-  activePanelTab: "terminal" | "diff" | "changes" | "history";
+  activePanelTab: "terminal" | "changes" | "history";
   sidebarMode: SidebarMode;
   addTab: (opts: { alias: string; path: string; type?: TabType }) => void;
   removeTab: (id: string) => void;

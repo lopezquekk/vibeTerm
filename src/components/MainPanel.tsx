@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTabStore } from "../store/tabStore";
 import TerminalView from "./TerminalView";
-import GitDiffPanel from "./GitDiffPanel";
 import GitHistoryPanel from "./GitHistoryPanel";
 import ChangesPanel from "./ChangesPanel";
 
 const PANEL_TABS = [
   { id: "terminal", label: "Terminal", icon: "⊡" },
-  { id: "diff", label: "Git Diff", icon: "≋" },
   { id: "changes", label: "Changes", icon: "⊞" },
   { id: "history", label: "History", icon: "◷" },
 ] as const;
@@ -151,9 +149,6 @@ export default function MainPanel() {
           );
         })}
 
-        <div className={activePanelTab === "diff" ? "block h-full" : "hidden"}>
-          <GitDiffPanel tabId={activeTab.id} />
-        </div>
         <div className={activePanelTab === "changes" ? "block h-full" : "hidden"}>
           <ChangesPanel tabId={activeTab.id} />
         </div>
