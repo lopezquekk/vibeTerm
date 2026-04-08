@@ -44,6 +44,8 @@ export default function TerminalView({ tabId, path }: Props) {
   const unlistenPort = useRef<(() => void) | null>(null);
   const unlistenFocus = useRef<(() => void) | null>(null);
   const rafRef = useRef<number | null>(null);
+  const pendingDataRef = useRef<string>('');
+  const outputRafRef = useRef<number | null>(null);
   const searchOpenRef = useRef(false);
   const updateTab = useTabStore((s) => s.updateTab);
   const activeTabIdRef = useRef(useTabStore.getState().activeTabId);
@@ -180,11 +182,29 @@ export default function TerminalView({ tabId, path }: Props) {
     };
     refreshWorktree(path);
 
-    // Listen for PTY output
+    // Listen for PTY output — batch writes with requestAnimationFrame so
+    // xterm.js renders at most once per ~16ms frame instead of once per chunk.
     unlisten.current = transport.onPtyData(tabId, (data) => {
-      term.write(data);
+      pendingDataRef.current += data;
+
+      // Guard Zustand update: only fire when hasActivity changes false→true.
       if (activeTabIdRef.current !== tabId) {
-        updateTab(tabId, { hasActivity: true });
+        const alreadyActive = useTabStore.getState().tabs.find(
+          (t) => t.id === tabId
+        )?.hasActivity;
+        if (!alreadyActive) {
+          updateTab(tabId, { hasActivity: true });
+        }
+      }
+
+      if (outputRafRef.current === null) {
+        outputRafRef.current = requestAnimationFrame(() => {
+          if (pendingDataRef.current) {
+            term.write(pendingDataRef.current);
+            pendingDataRef.current = '';
+          }
+          outputRafRef.current = null;
+        });
       }
     });
 
@@ -227,6 +247,11 @@ export default function TerminalView({ tabId, path }: Props) {
 
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      if (outputRafRef.current !== null) {
+        cancelAnimationFrame(outputRafRef.current);
+        outputRafRef.current = null;
+      }
+      pendingDataRef.current = '';
       unlisten.current?.();
       unlistenCwd.current?.();
       unlistenPort.current?.();
