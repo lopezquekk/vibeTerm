@@ -136,7 +136,6 @@ export default function TerminalView({ tabId, path }: Props) {
     term.loadAddon(webLinksAddon);
     term.loadAddon(searchAddon);
     term.open(containerRef.current);
-    fitAddon.fit();
 
     termRef.current = term;
     fitRef.current = fitAddon;
@@ -172,14 +171,28 @@ export default function TerminalView({ tabId, path }: Props) {
       });
     };
 
-    // Start PTY session — ensure non-zero cols/rows even if fit hasn't measured yet
-    const initCols = Math.max(term.cols, 80);
-    const initRows = Math.max(term.rows, 24);
-    transport.ptyCreate(tabId, path, initCols, initRows).catch((err) => {
-      const msg = err?.message ?? String(err);
-      term.writeln(`\r\n\x1b[31mConnection error: ${msg}\x1b[0m`);
-      setPtyError(msg);
-      console.error(err);
+    // Fit inside a RAF so the container has its final dimensions before we
+    // create the PTY. This is critical for non-fullscreen windows: if we call
+    // ptyCreate with the wrong cols/rows, TUI apps (Claude CLI, vim, etc.)
+    // read those dimensions at startup and render their initial UI incorrectly.
+    // SIGWINCH arrives later but the app has already drawn its first frame wrong.
+    let ptyStarted = false;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      if (!containerRef.current) return;
+      const el = containerRef.current;
+      if (el.offsetWidth > 0 && el.offsetHeight > 0) {
+        try { fitAddon.fit(); } catch {}
+      }
+      const initCols = Math.max(term.cols, 80);
+      const initRows = Math.max(term.rows, 24);
+      ptyStarted = true;
+      transport.ptyCreate(tabId, path, initCols, initRows).catch((err) => {
+        const msg = err?.message ?? String(err);
+        term.writeln(`\r\n\x1b[31mConnection error: ${msg}\x1b[0m`);
+        setPtyError(msg);
+        console.error(err);
+      });
     });
 
     // Detect if this path is inside a linked worktree
@@ -265,7 +278,7 @@ export default function TerminalView({ tabId, path }: Props) {
       unlistenPort.current?.();
       unlistenFocus.current?.();
       resizeObserver.disconnect();
-      transport.ptyClose(tabId).catch(console.error);
+      if (ptyStarted) transport.ptyClose(tabId).catch(console.error);
       term.dispose();
     };
   }, [tabId]);
