@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
@@ -114,12 +115,19 @@ export default function TerminalView({ tabId, path }: Props) {
         brightCyan: "#67e8f9",
         brightWhite: "#ffffff",
       },
-      fontFamily: "JetBrains Mono, Fira Code, Cascadia Code, monospace",
+      fontFamily: "JetBrains Mono, Fira Code, Cascadia Code, Menlo, monospace",
       fontSize: 13,
       lineHeight: 1.0,
       cursorBlink: true,
       scrollback: 5000,
+      allowProposedApi: true,
     });
+
+    // Enable Unicode 11 width rules so special symbols, bullets, and emoji
+    // used by TUI apps (Claude CLI, etc.) are measured at the correct cell width.
+    const unicode11Addon = new Unicode11Addon();
+    term.loadAddon(unicode11Addon);
+    term.unicode.activeVersion = "11";
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
