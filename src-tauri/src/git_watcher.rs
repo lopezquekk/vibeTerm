@@ -27,16 +27,35 @@ fn find_git_root(path: &str) -> Option<PathBuf> {
     }
 }
 
-/// Returns true for events that mean the working tree or index changed.
+/// Returns true for events that signal a user-initiated git change.
+///
+/// We deliberately exclude `.git/index` and `.git/index.lock`:
+/// `git status` rewrites index timestamps (the "untracked cache" optimisation),
+/// so watching index causes a feedback loop where our own status reads trigger
+/// further reads. Staging/unstaging via the UI is refreshed explicitly after
+/// each action; staging from the terminal is caught on the 30-second heartbeat.
 fn is_relevant(event: &Event) -> bool {
     match event.kind {
         EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
             event.paths.iter().any(|p| {
+                // Never trigger on lock/temp files — these are created by git
+                // commands themselves (including our own invocations).
                 let s = p.to_string_lossy();
-                s.contains("HEAD")
-                    || s.contains("/index")
-                    || s.contains("/refs/")
-                    || s.contains("COMMIT_EDITMSG")
+                if s.ends_with(".lock") || s.ends_with(".tmp") {
+                    return false;
+                }
+                let filename = p
+                    .file_name()
+                    .map(|f| f.to_string_lossy())
+                    .unwrap_or_default();
+                // HEAD  — branch switch, checkout, rebase, cherry-pick
+                // COMMIT_EDITMSG — new commit
+                // refs/ — branch/tag create/delete, push
+                // packed-refs — packed branch/tag updates
+                filename == "HEAD"
+                    || filename == "COMMIT_EDITMSG"
+                    || filename == "packed-refs"
+                    || s.contains("/.git/refs/")
             })
         }
         _ => false,

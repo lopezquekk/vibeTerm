@@ -56,6 +56,7 @@ Designed for workflows where you're constantly switching between a main repo, fe
 git clone https://github.com/youruser/vibeterm.git
 cd vibeterm
 pnpm install
+pnpm build        # compiles server/dist and dist (frontend)
 pnpm tauri dev
 ```
 
@@ -179,6 +180,58 @@ Works out of the box with:
 - Any shell configured to emit `\e]7;file://host/path\a`
 
 If your shell doesn't emit OSC 7 the sidebar path stays fixed at the session's starting directory — nothing breaks.
+
+---
+
+## Troubleshooting
+
+### `failed to run 'cargo metadata'` — cargo not found
+
+Rust is not installed. Install it:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+```
+
+Then retry `pnpm tauri dev`.
+
+---
+
+### `resource path '../server/dist' doesn't exist`
+
+The Node.js server has not been compiled yet. Build it first:
+
+```bash
+cd server && npm run build
+cd ..
+pnpm tauri dev
+```
+
+---
+
+### `resource path '../dist' doesn't exist`
+
+The frontend has not been compiled. Run the full build before `tauri dev`:
+
+```bash
+pnpm build
+pnpm tauri dev
+```
+
+`pnpm build` compiles both `server/dist` and the frontend `dist` in one step.
+
+---
+
+### `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tauri" not found`
+
+Node dependencies are not installed. Run:
+
+```bash
+pnpm install
+```
+
+Then retry `pnpm tauri dev`.
 
 ---
 

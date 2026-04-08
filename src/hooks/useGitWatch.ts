@@ -5,6 +5,7 @@ import { transport } from "../transport/factory";
 
 const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
 const FALLBACK_POLL_MS = 30_000;
+const DEBOUNCE_MS = 250;
 
 /**
  * Watches for git changes in `cwd` and calls `onChanged` when detected.
@@ -27,7 +28,15 @@ export function useGitWatch(
     if (!cwd) return;
 
     let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let destroyed = false;
+
+    const fireDebounced = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (!destroyed) onChangedRef.current();
+      }, DEBOUNCE_MS);
+    };
 
     const startPolling = () => {
       if (pollInterval) clearInterval(pollInterval);
@@ -50,7 +59,7 @@ export function useGitWatch(
       transport.watchGitDir(tabId, cwd).catch(() => {/* watcher failed — Rust emits git-watch-failed */});
 
       const pChanged = listen<void>(`git-changed-${tabId}`, () => {
-        if (!destroyed) onChangedRef.current();
+        if (!destroyed) fireDebounced();
       });
 
       const pFailed = listen<void>("git-watch-failed", () => {
@@ -63,6 +72,7 @@ export function useGitWatch(
       return () => {
         destroyed = true;
         if (pollInterval) clearInterval(pollInterval);
+        if (debounceTimer) clearTimeout(debounceTimer);
         pChanged.then((fn) => fn());
         pFailed.then((fn) => fn());
         document.removeEventListener("visibilitychange", onVisibility);
