@@ -55,6 +55,7 @@ export function createSession(
   env.SHELL = shell;
   env.TERM = "xterm-256color";
   env.COLORTERM = "truecolor";
+  env.TERM_PROGRAM = "vibeTerm";
   env.LANG = process.env.LANG ?? "en_US.UTF-8";
   if (!env.PATH) {
     env.PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin";
