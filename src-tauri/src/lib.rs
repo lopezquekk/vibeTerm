@@ -132,6 +132,31 @@ fn create_branch(path: String, branch: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn list_stashes(path: String) -> Result<Vec<git::StashInfo>, String> {
+    git::list_stashes(&path)
+}
+
+#[tauri::command]
+fn stash_push(path: String, message: String) -> Result<(), String> {
+    git::stash_push(&path, &message)
+}
+
+#[tauri::command]
+fn stash_pop(path: String, index: u32) -> Result<(), String> {
+    git::stash_pop(&path, index)
+}
+
+#[tauri::command]
+fn stash_apply(path: String, index: u32) -> Result<(), String> {
+    git::stash_apply(&path, index)
+}
+
+#[tauri::command]
+fn stash_drop(path: String, index: u32) -> Result<(), String> {
+    git::stash_drop(&path, index)
+}
+
+#[tauri::command]
 fn open_url(url: String) {
     let _ = std::process::Command::new("open").arg(&url).spawn();
 }
@@ -179,6 +204,11 @@ pub fn run() {
             get_branches,
             switch_branch,
             create_branch,
+            list_stashes,
+            stash_push,
+            stash_pop,
+            stash_apply,
+            stash_drop,
             open_url,
             get_worktree_main,
             git_watcher::watch_git_dir,

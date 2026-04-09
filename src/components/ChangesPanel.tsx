@@ -13,6 +13,7 @@ import {
   DiffTable,
   ImageDiffView,
 } from "../utils/diff";
+import type { StashInfo } from "../transport/types";
 import { ErrorBanner } from "./ErrorBanner";
 import { useErrorHandler } from "../hooks/useErrorHandler";
 
@@ -121,6 +122,85 @@ function SectionHeader({
   );
 }
 
+// ── Stash section ──────────────────────────────────────────────────────────────
+
+function StashSection({
+  stashes,
+  stashMsg,
+  stashLoading,
+  hasChanges,
+  onMsgChange,
+  onStash,
+  onPop,
+  onApply,
+  onDrop,
+}: {
+  stashes: StashInfo[];
+  stashMsg: string;
+  stashLoading: boolean;
+  hasChanges: boolean;
+  onMsgChange: (v: string) => void;
+  onStash: () => void;
+  onPop: (i: number) => void;
+  onApply: (i: number) => void;
+  onDrop: (i: number) => void;
+}) {
+  return (
+    <div className="flex-shrink-0 border-t border-border">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/60">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+          Stashes
+          {stashes.length > 0 && (
+            <span className="ml-1.5 text-zinc-600 font-normal normal-case tracking-normal">
+              {stashes.length}
+            </span>
+          )}
+        </span>
+      </div>
+      {hasChanges && (
+        <div className="flex gap-1.5 px-2 py-1.5 border-b border-border/40">
+          <input
+            value={stashMsg}
+            onChange={(e) => onMsgChange(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") onStash(); }}
+            placeholder="Message (optional)"
+            className="flex-1 min-w-0 bg-zinc-900 border border-border rounded text-xs text-zinc-200 placeholder-zinc-600 px-2 py-1 focus:outline-none focus:border-accent/60"
+          />
+          <button
+            onClick={onStash}
+            disabled={stashLoading}
+            className="px-2 py-1 rounded text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {stashLoading ? "…" : "Stash"}
+          </button>
+        </div>
+      )}
+      {stashes.length === 0 ? (
+        <p className="text-[11px] text-zinc-600 px-3 py-2">No stashes</p>
+      ) : (
+        <div className="overflow-y-auto" style={{ maxHeight: "140px" }}>
+          {stashes.map((s) => (
+            <div
+              key={s.index}
+              className="flex items-center gap-1.5 px-2 py-1.5 group hover:bg-zinc-800/50 border-b border-border/30 last:border-0"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-zinc-300 truncate leading-tight">{s.message}</p>
+                <p className="text-[10px] text-zinc-600 leading-tight">{s.date}</p>
+              </div>
+              <div className="flex-shrink-0 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <ActionBtn onClick={() => onApply(s.index)} title="Apply (keep stash)">↓</ActionBtn>
+                <ActionBtn onClick={() => onPop(s.index)} title="Pop (apply and drop)">↩</ActionBtn>
+                <ActionBtn onClick={() => onDrop(s.index)} title="Drop stash" danger>✕</ActionBtn>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function ChangesPanel({ tabId }: { tabId: string }) {
@@ -128,6 +208,9 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
 
   const { toastError } = useErrorHandler();
   const [status, setStatus] = useState<WorkdirStatus>({ staged: [], unstaged: [] });
+  const [stashes, setStashes] = useState<StashInfo[]>([]);
+  const [stashMsg, setStashMsg] = useState("");
+  const [stashLoading, setStashLoading] = useState(false);
   const [selection, setSelection] = useState<Selection>(null);
   const [diffLines, setDiffLines] = useState<DiffLine[]>([]);
   const [imageDiff, setImageDiff] = useState<ImageDiff | null>(null);
@@ -140,11 +223,16 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
   const refresh = useCallback(async () => {
     if (!tab?.path) return;
     try {
-      const s = await transport.getWorkdirStatus(tab.path);
+      const [s, st] = await Promise.all([
+        transport.getWorkdirStatus(tab.path),
+        transport.listStashes(tab.path),
+      ]);
       setStatus(s);
+      setStashes(st);
     } catch (err) {
       toastError(err);
       setStatus({ staged: [], unstaged: [] });
+      setStashes([]);
     }
   }, [tab?.path]);
 
@@ -208,13 +296,65 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
     }
   };
 
+  const handleStash = async () => {
+    if (!tab?.path) return;
+    setStashLoading(true);
+    try {
+      await transport.stashPush(tab.path, stashMsg.trim());
+      setStashMsg("");
+      setSelection(null);
+      await refresh();
+    } catch (err) { toastError(err); }
+    finally { setStashLoading(false); }
+  };
+
+  const handleStashPop = async (index: number) => {
+    if (!tab?.path) return;
+    try { await transport.stashPop(tab.path, index); await refresh(); }
+    catch (err) { toastError(err); }
+  };
+
+  const handleStashApply = async (index: number) => {
+    if (!tab?.path) return;
+    try { await transport.stashApply(tab.path, index); await refresh(); }
+    catch (err) { toastError(err); }
+  };
+
+  const handleStashDrop = async (index: number) => {
+    if (!tab?.path) return;
+    try { await transport.stashDrop(tab.path, index); await refresh(); }
+    catch (err) { toastError(err); }
+  };
+
   const isEmpty = status.staged.length === 0 && status.unstaged.length === 0;
 
-  if (isEmpty) {
+  if (isEmpty && stashes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 text-zinc-600">
         <span className="text-3xl">✓</span>
         <span className="text-sm">Working tree clean</span>
+      </div>
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden bg-sidebar">
+        <div className="flex flex-col items-center justify-center flex-1 gap-2 text-zinc-600">
+          <span className="text-3xl">✓</span>
+          <span className="text-sm">Working tree clean</span>
+        </div>
+        <StashSection
+          stashes={stashes}
+          stashMsg={stashMsg}
+          stashLoading={stashLoading}
+          hasChanges={false}
+          onMsgChange={setStashMsg}
+          onStash={handleStash}
+          onPop={handleStashPop}
+          onApply={handleStashApply}
+          onDrop={handleStashDrop}
+        />
       </div>
     );
   }
@@ -325,6 +465,18 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
             {committing ? "Committing…" : `Commit ${status.staged.length > 0 ? `(${status.staged.length})` : ""}`}
           </button>
         </div>
+
+        <StashSection
+          stashes={stashes}
+          stashMsg={stashMsg}
+          stashLoading={stashLoading}
+          hasChanges={true}
+          onMsgChange={setStashMsg}
+          onStash={handleStash}
+          onPop={handleStashPop}
+          onApply={handleStashApply}
+          onDrop={handleStashDrop}
+        />
       </div>
 
       {/* ── Right: diff viewer ────────────────────────────────────────────── */}

@@ -37,6 +37,11 @@ export function createGitRouter(getAllowedPaths: () => string[]) {
   router.post("/commit",        (req, res) => { git.gitCommit(bp(req,"path"), bp(req,"message")); res.json({ ok: true }); });
   router.post("/switch-branch", (req, res) => { git.switchBranch(bp(req,"path"), bp(req,"branch")); res.json({ ok: true }); });
   router.post("/create-branch", (req, res) => { git.createBranch(bp(req,"path"), bp(req,"branch")); res.json({ ok: true }); });
+  router.get("/stash-list",     (req, res) => res.json(git.listStashes(qp(req, "path"))));
+  router.post("/stash-push",    (req, res) => { git.stashPush(bp(req,"path"), bp(req,"message") ?? ""); res.json({ ok: true }); });
+  router.post("/stash-pop",     (req, res) => { git.stashPop(bp(req,"path"), Number(bp(req,"index"))); res.json({ ok: true }); });
+  router.post("/stash-apply",   (req, res) => { git.stashApply(bp(req,"path"), Number(bp(req,"index"))); res.json({ ok: true }); });
+  router.post("/stash-drop",    (req, res) => { git.stashDrop(bp(req,"path"), Number(bp(req,"index"))); res.json({ ok: true }); });
 
   return router;
 }

@@ -1,6 +1,6 @@
 import type {
   Transport, GitStatus, ChangedFile, WorkdirStatus,
-  ImageDiff, CommitInfo, CommitFile, BranchInfo,
+  ImageDiff, CommitInfo, CommitFile, BranchInfo, StashInfo,
 } from "./types";
 
 const MAX_QUEUE = 500;
@@ -149,6 +149,11 @@ export class WebSocketTransport implements Transport {
     return this.get("commit-image-diff", { path: p, hash: h, file: f });
   }
   getBranches(p: string): Promise<BranchInfo[]>              { return this.get("branches", { path: p }); }
+  listStashes(p: string): Promise<StashInfo[]>               { return this.get("stash-list", { path: p }); }
+  stashPush(p: string, m: string): Promise<void>             { return this.post("stash-push", { path: p, message: m }); }
+  stashPop(p: string, i: number): Promise<void>              { return this.post("stash-pop", { path: p, index: String(i) }); }
+  stashApply(p: string, i: number): Promise<void>            { return this.post("stash-apply", { path: p, index: String(i) }); }
+  stashDrop(p: string, i: number): Promise<void>             { return this.post("stash-drop", { path: p, index: String(i) }); }
   async getWorktreeMain(p: string): Promise<string | null> {
     const r: any = await this.get("worktree-main", { path: p }); return r.main ?? null;
   }
