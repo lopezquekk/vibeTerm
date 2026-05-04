@@ -166,6 +166,34 @@ export function gitCommit(repoPath: string, message: string): void {
   execFileSync(GIT, ["commit", "-m", message], { cwd: repoPath, stdio: "pipe" });
 }
 
+export function listStashes(repoPath: string) {
+  const out = run(["stash", "list", "--format=%gd%x1f%s%x1f%ar"], repoPath);
+  return out.trim().split("\n").filter(Boolean).map((line) => {
+    const parts = line.split("\x1f");
+    const ref = parts[0]?.trim() ?? "";
+    const index = parseInt(ref.replace(/^stash@\{(\d+)\}$/, "$1")) || 0;
+    return { index, message: parts[1]?.trim() ?? ref, date: parts[2]?.trim() ?? "" };
+  });
+}
+
+export function stashPush(repoPath: string, message: string): void {
+  const args = ["stash", "push", "--include-untracked"];
+  if (message) args.push("-m", message);
+  run(args, repoPath);
+}
+
+export function stashPop(repoPath: string, index: number): void {
+  run(["stash", "pop", `stash@{${index}}`], repoPath);
+}
+
+export function stashApply(repoPath: string, index: number): void {
+  run(["stash", "apply", `stash@{${index}}`], repoPath);
+}
+
+export function stashDrop(repoPath: string, index: number): void {
+  run(["stash", "drop", `stash@{${index}}`], repoPath);
+}
+
 export function switchBranch(repoPath: string, branch: string): void {
   run(["checkout", branch], repoPath);
 }

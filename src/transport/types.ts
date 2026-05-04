@@ -45,6 +45,12 @@ export interface BranchInfo {
   is_current: boolean;
 }
 
+export interface StashInfo {
+  index: number;
+  message: string;
+  date: string;
+}
+
 export interface Transport {
   // PTY
   ptyCreate(tabId: string, cwd: string, cols: number, rows: number): Promise<void>;
@@ -80,6 +86,13 @@ export interface Transport {
   getBranches(path: string): Promise<BranchInfo[]>;
   switchBranch(path: string, branch: string): Promise<void>;
   createBranch(path: string, branch: string): Promise<void>;
+
+  // Git — stash
+  listStashes(path: string): Promise<StashInfo[]>;
+  stashPush(path: string, message: string): Promise<void>;
+  stashPop(path: string, index: number): Promise<void>;
+  stashApply(path: string, index: number): Promise<void>;
+  stashDrop(path: string, index: number): Promise<void>;
 
   // Worktrees
   getWorktreeMain(path: string): Promise<string | null>;

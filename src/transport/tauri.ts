@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Transport, GitStatus, ChangedFile, WorkdirStatus,
-  ImageDiff, CommitInfo, CommitFile, BranchInfo,
+  ImageDiff, CommitInfo, CommitFile, BranchInfo, StashInfo,
 } from "./types";
 
 export class TauriTransport implements Transport {
@@ -57,6 +57,11 @@ export class TauriTransport implements Transport {
   getBranches(path: string): Promise<BranchInfo[]> { return invoke("get_branches", { path }); }
   switchBranch(path: string, branch: string): Promise<void> { return invoke("switch_branch", { path, branch }); }
   createBranch(path: string, branch: string): Promise<void> { return invoke("create_branch", { path, branch }); }
+  listStashes(path: string): Promise<StashInfo[]> { return invoke("list_stashes", { path }); }
+  stashPush(path: string, message: string): Promise<void> { return invoke("stash_push", { path, message }); }
+  stashPop(path: string, index: number): Promise<void> { return invoke("stash_pop", { path, index }); }
+  stashApply(path: string, index: number): Promise<void> { return invoke("stash_apply", { path, index }); }
+  stashDrop(path: string, index: number): Promise<void> { return invoke("stash_drop", { path, index }); }
   getWorktreeMain(path: string): Promise<string | null> { return invoke("get_worktree_main", { path }); }
   openUrl(url: string): void { invoke("open_url", { url }).catch(console.error); }
   watchGitDir(tabId: string, path: string): Promise<void> {

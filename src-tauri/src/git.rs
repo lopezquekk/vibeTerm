@@ -510,6 +510,77 @@ pub fn stage_all(repo_path: &str) -> Result<(), String> {
     if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).to_string()) }
 }
 
+// ── Stash ─────────────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct StashInfo {
+    pub index: u32,
+    pub message: String,
+    pub date: String,
+}
+
+pub fn list_stashes(repo_path: &str) -> Result<Vec<StashInfo>, String> {
+    let out = Command::new("git")
+        .args(["-C", repo_path, "stash", "list", "--format=%gd%x1f%s%x1f%ar"])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    let mut stashes = Vec::new();
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        let parts: Vec<&str> = line.splitn(3, '\x1f').collect();
+        if parts.len() < 3 { continue; }
+        let ref_str = parts[0].trim();
+        let index: u32 = ref_str
+            .trim_start_matches("stash@{")
+            .trim_end_matches('}')
+            .parse()
+            .unwrap_or(0);
+        stashes.push(StashInfo {
+            index,
+            message: parts[1].trim().to_string(),
+            date: parts[2].trim().to_string(),
+        });
+    }
+    Ok(stashes)
+}
+
+pub fn stash_push(repo_path: &str, message: &str) -> Result<(), String> {
+    let mut cmd = Command::new("git");
+    cmd.args(["-C", repo_path, "stash", "push", "--include-untracked"]);
+    if !message.is_empty() {
+        cmd.args(["-m", message]);
+    }
+    let out = cmd.output().map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
+}
+
+pub fn stash_pop(repo_path: &str, index: u32) -> Result<(), String> {
+    let stash_ref = format!("stash@{{{}}}", index);
+    let out = Command::new("git")
+        .args(["-C", repo_path, "stash", "pop", &stash_ref])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
+}
+
+pub fn stash_apply(repo_path: &str, index: u32) -> Result<(), String> {
+    let stash_ref = format!("stash@{{{}}}", index);
+    let out = Command::new("git")
+        .args(["-C", repo_path, "stash", "apply", &stash_ref])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
+}
+
+pub fn stash_drop(repo_path: &str, index: u32) -> Result<(), String> {
+    let stash_ref = format!("stash@{{{}}}", index);
+    let out = Command::new("git")
+        .args(["-C", repo_path, "stash", "drop", &stash_ref])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
+}
+
 pub fn git_commit(repo_path: &str, message: &str) -> Result<(), String> {
     let out = Command::new("git")
         .args(["-C", repo_path, "commit", "-m", message])
