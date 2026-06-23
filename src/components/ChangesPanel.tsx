@@ -273,6 +273,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
     action: "stage" | "unstage" | "discard" | "stageAll",
     file?: string
   ) => {
+    if (action === "discard" && file && !window.confirm(`Discard all changes to ${file}? This cannot be undone.`)) return;
     if (!tab?.path) return;
     try {
       if (action === "stage" && file)        await transport.stageFile(tab.path, file);
@@ -324,6 +325,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
   };
 
   const handleStashDrop = async (index: number) => {
+    if (!window.confirm("Drop this stash permanently?")) return;
     if (!tab?.path) return;
     try { await transport.stashDrop(tab.path, index); await refresh(); }
     catch (err) { toastError(err); }
