@@ -69,6 +69,7 @@ app.use(express.json());
 app.use("/api", rateLimiter, createAuthMiddleware(getToken));
 app.use("/api/git", createGitRouter(() => allowedPaths));
 app.use("/api/control", createControlRouter(addPath, () => remoteTabs));
+app.get("/api/ping", (_req, res) => res.json({ ok: true }));
 app.use(createStaticRouter());
 app.get("*", (_req, res) => {
   const idx = path.resolve(__dirname, "../../dist/index.html");
