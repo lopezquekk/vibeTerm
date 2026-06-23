@@ -16,6 +16,7 @@ import {
 import type { StashInfo } from "../transport/types";
 import { ErrorBanner } from "./ErrorBanner";
 import { useErrorHandler } from "../hooks/useErrorHandler";
+import { useConnectionStore } from "../store/connectionStore";
 
 interface FileEntry {
   path: string;
@@ -230,7 +231,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
       setStatus(s);
       setStashes(st);
     } catch (err) {
-      toastError(err);
+      if (useConnectionStore.getState().status === "connected") toastError(err);
       setStatus({ staged: [], unstaged: [] });
       setStashes([]);
     }
