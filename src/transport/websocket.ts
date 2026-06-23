@@ -2,6 +2,8 @@ import type {
   Transport, GitStatus, ChangedFile, WorkdirStatus,
   ImageDiff, CommitInfo, CommitFile, BranchInfo, StashInfo,
 } from "./types";
+import { useConnectionStore } from "../store/connectionStore";
+import { classifyProbe, type ConnStatus } from "./classifyFailure";
 
 const MAX_QUEUE = 500;
 
@@ -24,6 +26,7 @@ export class WebSocketTransport implements Transport {
     this.writeQueues.set(tabId, []);
     return new Promise((resolve, reject) => {
       const url = `${this.wsBase}/pty?sessionId=${tabId}&cwd=${encodeURIComponent(cwd)}&cols=${cols}&rows=${rows}&token=${this.token}`;
+      this.setStatus("connecting");
       const ws = new WebSocket(url);
       this.sockets.set(tabId, ws);
 
@@ -37,27 +40,30 @@ export class WebSocketTransport implements Transport {
         const msg = e.data as string;
         try {
           const p = JSON.parse(msg);
-          if (p.type === "pty-ready") { resolve(); return; }
+          if (p.type === "pty-ready") { this.setStatus("connected"); resolve(); return; }
           if (p.type === "pty-error") { reject(new Error(p.message)); return; }
         } catch { /* not JSON */ }
         this.dataCallbacks.get(tabId)?.(msg);
       };
 
       ws.onerror = () => reject(new Error("WS connection failed"));
-      ws.onclose = () => {
-        this.reconnect(tabId);
-        this.exitCallbacks.get(tabId)?.();
+      ws.onclose = (ev) => {
+        if (ev.code === 1000) { this.exitCallbacks.get(tabId)?.(); return; } // clean exit (Task 6)
+        void this.scheduleReconnect(tabId, 1000);
       };
     });
   }
 
-  private reconnect(tabId: string, delay = 1000): void {
-    const meta = this.sessionMeta.get(tabId);
-    if (!meta) return;
-    const { cwd, cols, rows } = meta;
+  private async scheduleReconnect(tabId: string, delay: number): Promise<void> {
+    if (!this.sessionMeta.has(tabId)) return; // tab closed
+    const status = await this.probeAndClassify();
+    this.setStatus(status === "connected" ? "reconnecting" : status);
+    if (status === "auth-failed") return;            // stop: needs a fresh QR/token
+    const nextDelay = status === "rate-limited" ? 60_000 : Math.min(delay * 2, 30_000);
     setTimeout(() => {
-      if (!this.sessionMeta.has(tabId)) return; // tab was closed
-      const url = `${this.wsBase}/pty?sessionId=${tabId}&cwd=${encodeURIComponent(cwd)}&cols=${cols}&rows=${rows}&token=${this.token}`;
+      if (!this.sessionMeta.has(tabId)) return;
+      const meta = this.sessionMeta.get(tabId)!;
+      const url = `${this.wsBase}/pty?sessionId=${tabId}&cwd=${encodeURIComponent(meta.cwd)}&cols=${meta.cols}&rows=${meta.rows}&token=${this.token}`;
       const ws = new WebSocket(url);
       this.sockets.set(tabId, ws);
       ws.onopen = () => {
@@ -67,12 +73,23 @@ export class WebSocketTransport implements Transport {
       };
       ws.onmessage = (e) => {
         const msg = e.data as string;
-        try { const p = JSON.parse(msg); if (p.type === "pty-ready" || p.type === "pty-error") return; } catch {}
+        try { const p = JSON.parse(msg); if (p.type === "pty-ready") { this.setStatus("connected"); return; } if (p.type === "pty-error") return; } catch {}
         this.dataCallbacks.get(tabId)?.(msg);
       };
-      ws.onclose = () => this.reconnect(tabId, Math.min(delay * 2, 30_000));
+      ws.onclose = (ev) => { if (ev.code === 1000) { this.exitCallbacks.get(tabId)?.(); return; } void this.scheduleReconnect(tabId, nextDelay); };
     }, delay);
   }
+
+  private async probeAndClassify(): Promise<ConnStatus> {
+    try {
+      const url = new URL("/api/ping", window.location.origin);
+      const r = await fetch(url.toString(), { headers: { Authorization: `Bearer ${this.token}` } });
+      return classifyProbe(r.status);
+    } catch {
+      return classifyProbe("network-error");
+    }
+  }
+  private setStatus(s: ConnStatus) { useConnectionStore.getState().setStatus(s); }
 
   ptyWrite(tabId: string, data: string): void {
     const ws = this.sockets.get(tabId);
