@@ -141,6 +141,14 @@ Open the URL on any device on the same network — or over Tailscale from anywhe
 | ↑ / ↓ | `\x1b[A/B` | Command history |
 | Esc | `\x1b` | Escape |
 
+### Remote access security
+
+Remote access serves over plain HTTP on your LAN and authenticates with a per-session
+token (shown as a QR code). Traffic — including terminal I/O — is **not encrypted on the
+wire**, so only use it on a network you trust. For untrusted networks, tunnel it
+(e.g. Tailscale, which the QR already prefers, or an outbound tunnel) so the transport
+is encrypted. The token rotates via the "regen" button; rotating invalidates old QR codes.
+
 ---
 
 ## Keyboard shortcuts
