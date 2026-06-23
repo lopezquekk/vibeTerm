@@ -15,6 +15,8 @@ import {
 import { useErrorHandler } from "../hooks/useErrorHandler";
 import { useConnectionStore } from "../store/connectionStore";
 
+const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface CommitInfo {
@@ -55,7 +57,7 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
       transport.getGitLog(tab.path)
         .then(setCommits)
         .catch((err) => {
-          if (useConnectionStore.getState().status === "connected") toastError(err);
+          if (IS_TAURI || useConnectionStore.getState().status === "connected") toastError(err);
           setCommits([]);
         });
 
@@ -63,7 +65,7 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
     transport.getGitLog(tab.path)
       .then((list) => { setCommits(list); setLoading(false); })
       .catch((err) => {
-        if (useConnectionStore.getState().status === "connected") toastError(err);
+        if (IS_TAURI || useConnectionStore.getState().status === "connected") toastError(err);
         setCommits([]);
         setLoading(false);
       });

@@ -18,6 +18,8 @@ import { ErrorBanner } from "./ErrorBanner";
 import { useErrorHandler } from "../hooks/useErrorHandler";
 import { useConnectionStore } from "../store/connectionStore";
 
+const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+
 interface FileEntry {
   path: string;
   status: string;
@@ -231,7 +233,7 @@ export default function ChangesPanel({ tabId }: { tabId: string }) {
       setStatus(s);
       setStashes(st);
     } catch (err) {
-      if (useConnectionStore.getState().status === "connected") toastError(err);
+      if (IS_TAURI || useConnectionStore.getState().status === "connected") toastError(err);
       setStatus({ staged: [], unstaged: [] });
       setStashes([]);
     }

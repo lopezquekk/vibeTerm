@@ -15,4 +15,10 @@ describe("toastStore dedup", () => {
     useToastStore.getState().addToast("bang", "error");
     expect(useToastStore.getState().toasts.length).toBe(2);
   });
+
+  it("allows the same message with a different type", () => {
+    useToastStore.getState().addToast("boom", "error");
+    useToastStore.getState().addToast("boom", "info");
+    expect(useToastStore.getState().toasts.length).toBe(2);
+  });
 });
