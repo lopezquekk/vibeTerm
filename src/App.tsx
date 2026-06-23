@@ -11,11 +11,23 @@ const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
 function App() {
   const { tabs, addTab, sidebarMode, setSidebarMode, updateTab, activeTabId } = useTabStore();
 
-  // Create default tab on first launch
+  // Tab initialization.
+  // Desktop (Tauri): a single "~" tab on first launch; the desktop is the source of truth.
+  // Remote (browser): continuously mirror the desktop's tab list so Terminal/Changes/
+  // History show exactly the tabs (alias/path/type) the desktop has open.
   useEffect(() => {
-    if (tabs.length === 0) {
-      addTab({ alias: "My Project", path: "~" });
+    if (IS_TAURI) {
+      if (tabs.length === 0) addTab({ alias: "My Project", path: "~" });
+      return;
     }
+    const mirror = useTabStore.getState().mirrorRemoteTabs;
+    const sync = () =>
+      transport.listRemoteTabs()
+        .then((remote) => { if (remote.length > 0) mirror(remote); })
+        .catch(() => {});
+    sync();
+    const id = setInterval(sync, 4000);
+    return () => clearInterval(id);
   }, []);
 
   // On startup: eagerly populate git status + worktree info, and register watchers (Tauri only)

@@ -165,6 +165,13 @@ export class WebSocketTransport implements Transport {
   switchBranch(p: string, b: string): Promise<void>{ return this.post("switch-branch", { path: p, branch: b }); }
   createBranch(p: string, b: string): Promise<void>{ return this.post("create-branch", { path: p, branch: b }); }
   openUrl(url: string): void { window.open(url, "_blank"); }
+  async listRemoteTabs(): Promise<import("./types").RemoteTab[]> {
+    const url = new URL("/api/control/tabs", window.location.origin);
+    const r = await fetch(url.toString(), { headers: { Authorization: `Bearer ${this.token}` } });
+    if (!r.ok) return [];
+    const j: any = await r.json();
+    return Array.isArray(j?.tabs) ? j.tabs : [];
+  }
   watchGitDir(_tabId: string, _path: string): Promise<void> { return Promise.resolve(); }
   unwatchGitDir(_tabId: string): Promise<void> { return Promise.resolve(); }
 }
