@@ -4,6 +4,7 @@ import type {
 } from "./types";
 import { useConnectionStore } from "../store/connectionStore";
 import { classifyProbe, type ConnStatus } from "./classifyFailure";
+import { parseOsc7Cwd, parseDevServerUrl } from "./parsePtyOutput";
 
 const MAX_QUEUE = 500;
 
@@ -13,6 +14,8 @@ export class WebSocketTransport implements Transport {
   private sockets = new Map<string, WebSocket>();
   private dataCallbacks = new Map<string, (data: string) => void>();
   private exitCallbacks = new Map<string, () => void>();
+  private cwdCallbacks = new Map<string, (p: string) => void>();
+  private portCallbacks = new Map<string, (p: string) => void>();
   private writeQueues = new Map<string, string[]>();
   private sessionMeta = new Map<string, { cwd: string; cols: number; rows: number }>();
 
@@ -45,6 +48,8 @@ export class WebSocketTransport implements Transport {
           if (p.type === "exit") { this.exitCallbacks.get(tabId)?.(); return; }
         } catch { /* not JSON */ }
         this.dataCallbacks.get(tabId)?.(msg);
+        const cwd = parseOsc7Cwd(msg); if (cwd) this.cwdCallbacks.get(tabId)?.(cwd);
+        const port = parseDevServerUrl(msg); if (port) this.portCallbacks.get(tabId)?.(port);
       };
 
       ws.onerror = () => reject(new Error("WS connection failed"));
@@ -76,6 +81,8 @@ export class WebSocketTransport implements Transport {
         const msg = e.data as string;
         try { const p = JSON.parse(msg); if (p.type === "pty-ready") { this.setStatus("connected"); return; } if (p.type === "pty-error") return; } catch {}
         this.dataCallbacks.get(tabId)?.(msg);
+        const cwd = parseOsc7Cwd(msg); if (cwd) this.cwdCallbacks.get(tabId)?.(cwd);
+        const port = parseDevServerUrl(msg); if (port) this.portCallbacks.get(tabId)?.(port);
       };
       ws.onclose = (ev) => { if (ev.code === 1000) { this.exitCallbacks.get(tabId)?.(); return; } void this.scheduleReconnect(tabId, nextDelay); };
     }, delay);
@@ -112,6 +119,8 @@ export class WebSocketTransport implements Transport {
     this.sockets.delete(tabId);
     this.dataCallbacks.delete(tabId);
     this.exitCallbacks.delete(tabId);
+    this.cwdCallbacks.delete(tabId);
+    this.portCallbacks.delete(tabId);
     this.writeQueues.delete(tabId);
     this.sessionMeta.delete(tabId);
     return Promise.resolve();
@@ -127,8 +136,12 @@ export class WebSocketTransport implements Transport {
     return () => this.exitCallbacks.delete(tabId);
   }
 
-  onCwdChanged(_id: string, _cb: (p: string) => void): () => void { return () => {}; }
-  onPortDetected(_id: string, _cb: (p: string) => void): () => void { return () => {}; }
+  onCwdChanged(id: string, cb: (p: string) => void): () => void {
+    this.cwdCallbacks.set(id, cb); return () => this.cwdCallbacks.delete(id);
+  }
+  onPortDetected(id: string, cb: (p: string) => void): () => void {
+    this.portCallbacks.set(id, cb); return () => this.portCallbacks.delete(id);
+  }
 
   private async get<T>(ep: string, params: Record<string, string>): Promise<T> {
     const url = new URL(`/api/git/${ep}`, window.location.origin);
