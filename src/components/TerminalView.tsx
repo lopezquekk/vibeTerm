@@ -364,6 +364,20 @@ export default function TerminalView({ tabId, path }: Props) {
       {/* Mobile control bar — shown only in browser (remote access) */}
       {!IS_TAURI && (
         <div className="flex-shrink-0 flex items-center gap-1 overflow-x-auto py-1 px-0.5 border-b border-border scrollbar-none">
+          <button
+            title="Search (⌘F)"
+            onPointerDown={(e) => { e.preventDefault(); searchOpenRef.current = true; setSearchOpen(true); }}
+            className="flex-shrink-0 px-2.5 py-1 text-[11px] text-zinc-300 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded border border-zinc-700 select-none touch-manipulation"
+          >🔍</button>
+          <button
+            title="Paste"
+            onPointerDown={async (e) => {
+              e.preventDefault();
+              try { const t = await navigator.clipboard.readText(); if (t) transport.ptyWrite(tabId, t); } catch { /* clipboard blocked */ }
+              termRef.current?.focus();
+            }}
+            className="flex-shrink-0 px-2.5 py-1 text-[11px] text-zinc-300 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded border border-zinc-700 select-none touch-manipulation"
+          >📋</button>
           {CTRL_KEYS.map(({ label, seq, title }) => (
             <button
               key={label}
