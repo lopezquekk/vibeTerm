@@ -55,12 +55,16 @@ export class WebSocketTransport implements Transport {
       ws.onerror = () => reject(new Error("WS connection failed"));
       ws.onclose = (ev) => {
         if (ev.code === 1000) { this.exitCallbacks.get(tabId)?.(); return; } // clean exit (Task 6)
-        void this.scheduleReconnect(tabId, 1000);
+        void this.scheduleReconnect(tabId, 1000, ev.code);
       };
     });
   }
 
-  private async scheduleReconnect(tabId: string, delay: number): Promise<void> {
+  private async scheduleReconnect(tabId: string, delay: number, closeCode?: number): Promise<void> {
+    if (closeCode !== undefined && closeCode >= 4000 && closeCode <= 4999) {
+      this.setStatus("offline");
+      return;
+    }
     if (!this.sessionMeta.has(tabId)) return; // tab closed
     const status = await this.probeAndClassify();
     this.setStatus(status === "connected" ? "reconnecting" : status);
@@ -84,7 +88,7 @@ export class WebSocketTransport implements Transport {
         const cwd = parseOsc7Cwd(msg); if (cwd) this.cwdCallbacks.get(tabId)?.(cwd);
         const port = parseDevServerUrl(msg); if (port) this.portCallbacks.get(tabId)?.(port);
       };
-      ws.onclose = (ev) => { if (ev.code === 1000) { this.exitCallbacks.get(tabId)?.(); return; } void this.scheduleReconnect(tabId, nextDelay); };
+      ws.onclose = (ev) => { if (ev.code === 1000) { this.exitCallbacks.get(tabId)?.(); return; } void this.scheduleReconnect(tabId, nextDelay, ev.code); };
     }, delay);
   }
 
