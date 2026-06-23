@@ -4,6 +4,8 @@ import { useTabStore, Tab, TabType } from "../store/tabStore";
 import BranchPicker from "./BranchPicker";
 import RemoteAccessPanel from "./RemoteAccessPanel";
 
+const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+
 const TYPE_ICONS: Record<TabType, string> = {
   project: "◈",
   frontend: "</>",
@@ -75,6 +77,7 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
   const branchBtnRef = useRef<HTMLButtonElement>(null);
 
   const handleDoubleClick = (e: React.MouseEvent) => {
+    if (!IS_TAURI) return;
     e.stopPropagation();
     setEditing(true);
     setEditValue(tab.alias);
@@ -148,15 +151,17 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
         )}
 
         {/* Remove button */}
-        <button
-          className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 text-xs ml-1 transition-opacity"
-          onClick={(e) => {
-            e.stopPropagation();
-            removeTab(tab.id);
-          }}
-        >
-          ✕
-        </button>
+        {IS_TAURI && (
+          <button
+            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 text-xs ml-1 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeTab(tab.id);
+            }}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Git + path row */}
@@ -237,13 +242,15 @@ export default function Sidebar() {
         </span>
 
         {/* New context */}
-        <button
-          className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors text-lg leading-none"
-          onClick={() => addTab({ alias: "New Context", path: "~" })}
-          title="New context"
-        >
-          +
-        </button>
+        {IS_TAURI && (
+          <button
+            className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors text-lg leading-none"
+            onClick={() => addTab({ alias: "New Context", path: "~" })}
+            title="New context"
+          >
+            +
+          </button>
+        )}
 
         {/* Pin button — only shown when floating, anchors sidebar to docked */}
         {sidebarMode === "floating" && (
@@ -274,6 +281,11 @@ export default function Sidebar() {
           </svg>
         </button>
       </div>
+
+      {/* Remote caption */}
+      {!IS_TAURI && (
+        <p className="px-3 py-1 text-[10px] text-zinc-600">Tabs are controlled by the desktop</p>
+      )}
 
       {/* Tab list */}
       <div className="flex-1 overflow-y-auto py-2">
