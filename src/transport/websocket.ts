@@ -42,6 +42,7 @@ export class WebSocketTransport implements Transport {
           const p = JSON.parse(msg);
           if (p.type === "pty-ready") { this.setStatus("connected"); resolve(); return; }
           if (p.type === "pty-error") { reject(new Error(p.message)); return; }
+          if (p.type === "exit") { this.exitCallbacks.get(tabId)?.(); return; }
         } catch { /* not JSON */ }
         this.dataCallbacks.get(tabId)?.(msg);
       };
