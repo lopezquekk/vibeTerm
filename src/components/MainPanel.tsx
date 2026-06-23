@@ -4,6 +4,8 @@ import TerminalView from "./TerminalView";
 import GitHistoryPanel from "./GitHistoryPanel";
 import ChangesPanel from "./ChangesPanel";
 
+const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+
 const PANEL_TABS = [
   { id: "terminal", label: "Terminal", icon: "⊡" },
   { id: "changes", label: "Changes", icon: "⊞" },
@@ -114,6 +116,7 @@ export default function MainPanel() {
         {tabs.map((tab) => {
           const split = splitTabs.has(tab.id);
           const visible = activePanelTab === "terminal" && tab.id === activeTabId;
+          if (!IS_TAURI && !visible) return null;   // remote: lazy — only the active terminal is mounted
           return (
             <div
               key={tab.id}
