@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useVisualViewport } from "../hooks/useVisualViewport";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -45,6 +46,7 @@ export default function TerminalView({ tabId, path }: Props) {
   const unlistenPort = useRef<(() => void) | null>(null);
   const unlistenFocus = useRef<(() => void) | null>(null);
   const rafRef = useRef<number | null>(null);
+  const scheduleFitRef = useRef<() => void>(() => {});
   const pendingDataRef = useRef<string>('');
   const outputRafRef = useRef<number | null>(null);
   const searchOpenRef = useRef(false);
@@ -57,6 +59,9 @@ export default function TerminalView({ tabId, path }: Props) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [ptyError, setPtyError] = useState<string | null>(null);
+
+  // Re-fit the terminal when the iOS on-screen keyboard opens/closes.
+  useVisualViewport(() => scheduleFitRef.current());
 
   // Focus the input after React has committed the render — reliable regardless
   // of where setSearchOpen(true) was called from (xterm handler, window handler, etc.)
@@ -170,6 +175,7 @@ export default function TerminalView({ tabId, path }: Props) {
         transport.ptyResize(tabId, term.cols, term.rows);
       });
     };
+    scheduleFitRef.current = scheduleFit;
 
     // Fit inside a RAF so the container has its final dimensions before we
     // create the PTY. This is critical for non-fullscreen windows: if we call
