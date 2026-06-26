@@ -70,4 +70,5 @@ export class TauriTransport implements Transport {
   unwatchGitDir(tabId: string): Promise<void> {
     return invoke("unwatch_git_dir", { tabId });
   }
+  listRemoteTabs(): Promise<import("./types").RemoteTab[]> { return Promise.resolve([]); }
 }

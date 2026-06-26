@@ -103,4 +103,16 @@ export interface Transport {
 
   // System
   openUrl(url: string): void;
+
+  // Remote tab mirroring — the desktop pushes its full tab list (alias/path/type) to
+  // the server; the browser fetches it here so the remote UI shows exactly the tabs
+  // the desktop has open. Returns [] in Tauri mode (the desktop is the source of truth).
+  listRemoteTabs(): Promise<RemoteTab[]>;
+}
+
+export interface RemoteTab {
+  id: string;
+  alias: string;
+  path: string;
+  type: string;
 }
