@@ -43,10 +43,10 @@ export default function SettingsModal() {
   if (!open) return null;
 
   const onToggleNotify = async (v: boolean) => {
+    setNotifyError(null);
     if (v) {
       const ok = await requestNotificationPermission();
       if (!ok) { setNotifyError("Permiso de notificaciones denegado"); return; }
-      setNotifyError(null);
     }
     s.set("notifyOnPrompt", v);
   };

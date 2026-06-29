@@ -311,17 +311,17 @@ export default function TerminalView({ tabId, path }: Props) {
     return useSettingsStore.subscribe((s, prev) => {
       const term = termRef.current;
       if (!term) return;
-      let changed = false;
-      if (s.fontSize !== prev.fontSize) { term.options.fontSize = s.fontSize; changed = true; }
-      if (s.cursorBlink !== prev.cursorBlink) { term.options.cursorBlink = s.cursorBlink; }
-      if (s.scrollback !== prev.scrollback) { term.options.scrollback = s.scrollback; changed = true; }
-      if (changed) {
-        try {
+      try {
+        let needsRefit = false;
+        if (s.fontSize !== prev.fontSize) { term.options.fontSize = s.fontSize; needsRefit = true; }
+        if (s.cursorBlink !== prev.cursorBlink) { term.options.cursorBlink = s.cursorBlink; }
+        if (s.scrollback !== prev.scrollback) { term.options.scrollback = s.scrollback; }
+        if (needsRefit) {
           fitRef.current?.fit();
           transport.ptyResize(tabId, term.cols, term.rows);
-        } catch {
-          /* terminal may be disposed */
         }
+      } catch {
+        /* terminal may be disposed */
       }
     });
   }, [tabId]);
