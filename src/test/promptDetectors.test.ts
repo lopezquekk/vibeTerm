@@ -89,3 +89,17 @@ describe("numbered-list detector", () => {
     expect(detectPrompt(md)).toBeNull();
   });
 });
+
+describe("yes-no detector", () => {
+  it("detects (y/n) confirmations", () => {
+    const p = detectPrompt(["Overwrite config.json", "Continue? (y/n)"])!;
+    expect(p.kind).toBe("confirm");
+    expect(p.question).toBe("Continue?");
+    expect(p.options.map((o) => o.send)).toEqual(["y\r", "n\r"]);
+  });
+
+  it("detects [Y/n] form", () => {
+    const p = detectPrompt(["Proceed with install? [Y/n]"])!;
+    expect(p.kind).toBe("confirm");
+  });
+});

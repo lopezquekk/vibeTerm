@@ -81,8 +81,33 @@ const numberedListDetector: Detector = {
   },
 };
 
+const YESNO_RE = /\(\s*(?:y\/n|s\/n)\s*\)|\[\s*(?:y\/n|Y\/n|y\/N)\s*\]/i;
+
+const yesNoDetector: Detector = {
+  name: "yes-no",
+  detect(lines) {
+    const cleaned = lines.map(clean);
+    for (let i = cleaned.length - 1; i >= 0; i--) {
+      if (!YESNO_RE.test(cleaned[i])) continue;
+      const question = cleaned[i].replace(YESNO_RE, "").trim() || "Continue?";
+      const options: PromptOption[] = [
+        { label: "Sí", send: "y\r" },
+        { label: "No", send: "n\r" },
+      ];
+      return {
+        tool: inferTool(lines),
+        kind: "confirm",
+        question,
+        options,
+        signature: computeSignature("confirm", question, options),
+      };
+    }
+    return null;
+  },
+};
+
 // Detectors are registered by later tasks.
-export const DETECTORS: Detector[] = [numberedListDetector];
+export const DETECTORS: Detector[] = [numberedListDetector, yesNoDetector];
 
 export function detectPrompt(lines: string[]): DetectedPrompt | null {
   for (const d of DETECTORS) {
