@@ -124,12 +124,15 @@ const highlightedListDetector: Detector = {
     }
     if (start === -1) return null;
 
-    // Gather the marker line plus contiguous non-empty sibling lines that are
-    // not borders, questions, or markered again.
+    // Gather the marker line plus contiguous sibling lines, stopping at a blank line,
+    // a box border separator, a numbered option line, or a question.
     const items: { label: string; marker: boolean }[] = [];
     for (let k = start; k < cleaned.length; k++) {
       const c = cleaned[k];
-      if (!c) break;
+      if (!c) break; // blank line stops collection
+      // Break on actual box footer/separator (horizontal lines like ╰──╯ or ┌──┐)
+      if (/[╰┘└┐├┤┬┴┼─]/.test(lines[k])) break;
+      if (/^[^\s]*\d+[.)]/.test(c)) break; // numbered option belongs to numberedListDetector
       const markered = MARKER_LINE_RE.test(c);
       const label = markered ? c.match(MARKER_LINE_RE)![1].trim() : c;
       if (label.endsWith("?")) break; // a trailing question is not an option

@@ -125,4 +125,8 @@ describe("highlighted-list detector (arrow fallback)", () => {
   it("does NOT fire without a box or question context", () => {
     expect(detectPrompt(["❯ just one highlighted line"])).toBeNull();
   });
+
+  it("does NOT fire without a box even with multiple marker lines", () => {
+    expect(detectPrompt(["❯ Option A", "  Option B", "  Option C"])).toBeNull();
+  });
 });
