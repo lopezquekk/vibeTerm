@@ -89,14 +89,22 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
 
   const shortPath = tab.path.replace(/^\/Users\/[^/]+/, "~");
 
-  const borderColor = isWorktree ? WORKTREE_COLOR : TYPE_COLORS[tab.type];
+  const accent = isWorktree ? WORKTREE_COLOR : TYPE_COLORS[tab.type];
 
   return (
     <div
-      style={{ borderColor }}
-      className={`group flex flex-col px-3 py-2.5 cursor-pointer rounded-md mb-1 transition-colors border
+      style={{
+        // Active: full-strength type color border + tinted bg + glow.
+        // Inactive: dimmed border so the active tab clearly stands out.
+        borderColor: isActive ? accent : `${accent}33`,
+        borderLeftColor: accent,
+        borderLeftWidth: isActive ? "4px" : "2px",
+        backgroundColor: isActive ? `${accent}22` : undefined,
+        boxShadow: isActive ? `0 0 0 1px ${accent}66, 0 0 12px ${accent}40` : undefined,
+      }}
+      className={`group flex flex-col px-3 py-2.5 cursor-pointer rounded-md mb-1 transition-all border
         ${isWorktree ? "ml-4 mr-2 border-dashed" : "mx-2"}
-        ${isActive ? "bg-sidebar-active" : "hover:bg-sidebar-hover"}`}
+        ${isActive ? "" : "opacity-75 hover:opacity-100 hover:bg-sidebar-hover"}`}
       onClick={() => !editing && setActiveTab(tab.id)}
       onDoubleClick={handleDoubleClick}
     >
@@ -127,7 +135,7 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <span className="flex-1 text-sm font-medium text-zinc-100 truncate">
+          <span className={`flex-1 text-sm truncate ${isActive ? "font-semibold text-white" : "font-medium text-zinc-100"}`}>
             {tab.alias}
           </span>
         )}
