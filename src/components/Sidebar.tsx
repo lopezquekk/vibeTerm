@@ -3,25 +3,7 @@ import { transport } from "../transport/factory";
 import { useTabStore, Tab, TabType } from "../store/tabStore";
 import BranchPicker from "./BranchPicker";
 import RemoteAccessPanel from "./RemoteAccessPanel";
-
-const TYPE_ICONS: Record<TabType, string> = {
-  project: "◈",
-  frontend: "</>",
-  backend: "⊛",
-  infra: "⚙",
-  logs: "≡",
-  database: "⊕",
-};
-
-// Left-border accent color per tab type
-const TYPE_COLORS: Record<TabType, string> = {
-  project:  "#3b82f6", // blue
-  frontend: "#a855f7", // purple
-  backend:  "#4ade80", // green
-  infra:    "#f97316", // orange
-  logs:     "#fbbf24", // yellow
-  database: "#22d3ee", // cyan
-};
+import { TYPE_ICONS, TYPE_COLORS } from "./tabTheme";
 
 // Worktree tabs use violet dashed border
 const WORKTREE_COLOR = "#8b5cf6";
