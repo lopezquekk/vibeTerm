@@ -10,29 +10,30 @@ interface PromptStore {
   queue: PendingPrompt[];
   current: PendingPrompt | null;
   handled: string[]; // signatures already resolved/dismissed
-  enqueue: (p: PendingPrompt) => void;
+  enqueue: (p: PendingPrompt) => boolean;
   resolve: () => void;
   dismiss: () => void;
   dismissIfStale: (signature: string) => void;
   reconcileTab: (tabId: string, liveSignature: string | null) => void;
 }
 
-export const usePromptStore = create<PromptStore>()((set) => ({
+export const usePromptStore = create<PromptStore>()((set, get) => ({
   queue: [],
   current: null,
   handled: [],
 
-  enqueue: (p) =>
-    set((s) => {
-      const sig = p.prompt.signature;
-      const known =
-        s.handled.includes(sig) ||
-        s.current?.prompt.signature === sig ||
-        s.queue.some((q) => q.prompt.signature === sig);
-      if (known) return {};
-      if (!s.current) return { current: p };
-      return { queue: [...s.queue, p] };
-    }),
+  enqueue: (p) => {
+    const s = get();
+    const sig = p.prompt.signature;
+    const known =
+      s.handled.includes(sig) ||
+      s.current?.prompt.signature === sig ||
+      s.queue.some((q) => q.prompt.signature === sig);
+    if (known) return false;
+    if (!s.current) set({ current: p });
+    else set({ queue: [...s.queue, p] });
+    return true;
+  },
 
   resolve: () =>
     set((s) => advance(s)),

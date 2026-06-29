@@ -80,3 +80,11 @@ describe("promptStore", () => {
     expect(usePromptStore.getState().current?.prompt.signature).toBe("a");
   });
 });
+
+describe("enqueue return value", () => {
+  it("returns true on insert and false on duplicate", () => {
+    const s = usePromptStore.getState();
+    expect(s.enqueue({ tabId: "t1", prompt: mk("a") })).toBe(true);
+    expect(usePromptStore.getState().enqueue({ tabId: "t1", prompt: mk("a") })).toBe(false);
+  });
+});
