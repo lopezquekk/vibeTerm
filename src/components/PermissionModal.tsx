@@ -4,6 +4,7 @@ import { usePromptStore } from "../store/promptStore";
 import { useTabStore } from "../store/tabStore";
 import { transport } from "../transport/factory";
 import { TYPE_ICONS, TYPE_COLORS } from "./tabTheme";
+import { useSettingsStore } from "../store/settingsStore";
 
 export default function PermissionModal() {
   const current = usePromptStore((s) => s.current);
@@ -46,7 +47,7 @@ export default function PermissionModal() {
   const send = (seq: string) => {
     try {
       transport.ptyWrite(current.tabId, seq);
-      setActiveTab(baseTabId); // jump to the originating terminal on answer
+      if (useSettingsStore.getState().focusTabOnAnswer) setActiveTab(baseTabId);
       resolve();
     } catch (e: any) {
       setError(e?.message ?? String(e));
