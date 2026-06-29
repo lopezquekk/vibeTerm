@@ -9,6 +9,7 @@ import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 import { ErrorBanner } from "./ErrorBanner";
 import { scanLines, readVisibleLines } from "../prompt-detection/scan";
+import { useSettingsStore } from "../store/settingsStore";
 
 interface Props {
   tabId: string;
@@ -118,10 +119,10 @@ export default function TerminalView({ tabId, path }: Props) {
         brightWhite: "#ffffff",
       },
       fontFamily: "JetBrains Mono, Fira Code, Cascadia Code, Menlo, monospace",
-      fontSize: 13,
+      fontSize: useSettingsStore.getState().fontSize,
       lineHeight: 1.0,
-      cursorBlink: true,
-      scrollback: 5000,
+      cursorBlink: useSettingsStore.getState().cursorBlink,
+      scrollback: useSettingsStore.getState().scrollback,
       allowProposedApi: true,
     });
 
@@ -298,6 +299,26 @@ export default function TerminalView({ tabId, path }: Props) {
       if (ptyStarted) transport.ptyClose(tabId).catch(console.error);
       term.dispose();
     };
+  }, [tabId]);
+
+  // Apply appearance settings live to this terminal when they change.
+  useEffect(() => {
+    return useSettingsStore.subscribe((s, prev) => {
+      const term = termRef.current;
+      if (!term) return;
+      let changed = false;
+      if (s.fontSize !== prev.fontSize) { term.options.fontSize = s.fontSize; changed = true; }
+      if (s.cursorBlink !== prev.cursorBlink) { term.options.cursorBlink = s.cursorBlink; }
+      if (s.scrollback !== prev.scrollback) { term.options.scrollback = s.scrollback; changed = true; }
+      if (changed) {
+        try {
+          fitRef.current?.fit();
+          transport.ptyResize(tabId, term.cols, term.rows);
+        } catch {
+          /* terminal may be disposed */
+        }
+      }
+    });
   }, [tabId]);
 
   const findNext = () => {
