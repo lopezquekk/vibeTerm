@@ -233,23 +233,28 @@ export default function TerminalView({ tabId, path }: Props) {
 
       // Debounced prompt detection: when PTY output goes idle, scan the
       // rendered buffer for an AI permission/question prompt. Best-effort.
-      if (promptScanTimer.current !== null) clearTimeout(promptScanTimer.current);
-      promptScanTimer.current = window.setTimeout(() => {
-        try {
-          scanLines(readVisibleLines(term), tabId);
-        } catch {
-          /* detection must never break the terminal */
-        }
-      }, 350);
+      const detectSettings = useSettingsStore.getState();
+      if (detectSettings.promptDetectionEnabled) {
+        if (promptScanTimer.current !== null) clearTimeout(promptScanTimer.current);
+        promptScanTimer.current = window.setTimeout(() => {
+          try {
+            scanLines(readVisibleLines(term), tabId);
+          } catch {
+            /* detection must never break the terminal */
+          }
+        }, detectSettings.promptScanDebounceMs);
+      }
     });
 
     // Listen for local server detection and store the URL
     unlistenPort.current = transport.onPortDetected(tabId, (port) => {
+      if (!useSettingsStore.getState().portDetection) return;
       updateTab(tabId, { detectedPort: port });
     });
 
     // Listen for CWD changes (OSC 7) and update the store
     unlistenCwd.current = transport.onCwdChanged(tabId, (newPath) => {
+      if (!useSettingsStore.getState().cwdTracking) return;
       updateTab(tabId, { path: newPath });
       transport.getGitStatus(newPath)
         .then((git) => updateTab(tabId, { git }))
