@@ -5,6 +5,8 @@ import BranchPicker from "./BranchPicker";
 import RemoteAccessPanel from "./RemoteAccessPanel";
 import { TYPE_ICONS, TYPE_COLORS } from "./tabTheme";
 import { usePromptStore } from "../store/promptStore";
+import { useUiStore } from "../store/uiStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 // Worktree tabs use violet dashed border
 const WORKTREE_COLOR = "#8b5cf6";
@@ -151,6 +153,7 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
           className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 text-xs ml-1 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
+            if (useSettingsStore.getState().confirmTabClose && !window.confirm(`¿Cerrar "${tab.alias}"?`)) return;
             removeTab(tab.id);
           }}
         >
@@ -226,6 +229,7 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
 
 export default function Sidebar() {
   const { tabs, activeTabId, addTab, sidebarMode, setSidebarMode } = useTabStore();
+  const openSettings = useUiStore((s) => s.openSettings);
 
   return (
     <div className="flex flex-col w-64 flex-shrink-0 bg-sidebar border-r border-border h-full">
@@ -261,6 +265,18 @@ export default function Sidebar() {
             </svg>
           </button>
         )}
+
+        {/* Settings */}
+        <button
+          className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-accent hover:bg-zinc-700 transition-colors"
+          title="Ajustes"
+          onClick={openSettings}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
 
         {/* Collapse button — hides the sidebar */}
         <button

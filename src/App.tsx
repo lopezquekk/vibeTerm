@@ -4,6 +4,7 @@ import MainPanel from "./components/MainPanel";
 import StatusBar from "./components/StatusBar";
 import { ToastContainer } from "./components/ToastContainer";
 import PermissionModal from "./components/PermissionModal";
+import SettingsModal from "./components/SettingsModal";
 import { useTabStore } from "./store/tabStore";
 import { transport, hasToken } from "./transport/factory";
 
@@ -125,6 +126,7 @@ function App() {
       </div>
       <ToastContainer />
       <PermissionModal />
+      <SettingsModal />
     </div>
   );
 }
