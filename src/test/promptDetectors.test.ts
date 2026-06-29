@@ -130,3 +130,22 @@ describe("highlighted-list detector (arrow fallback)", () => {
     expect(detectPrompt(["❯ Option A", "  Option B", "  Option C"])).toBeNull();
   });
 });
+
+describe("input-box detector (freeform)", () => {
+  it("detects a free-form question with an empty input box", () => {
+    const lines = [
+      "What would you like me to focus on for the refactor?",
+      "",
+      "│ >                                             │",
+    ];
+    const p = detectPrompt(lines)!;
+    expect(p.kind).toBe("freeform");
+    expect(p.question).toBe("What would you like me to focus on for the refactor?");
+    expect(p.options).toEqual([]);
+  });
+
+  it("does NOT fire on a shell prompt with no question", () => {
+    expect(detectPrompt(["> "])).toBeNull();
+    expect(detectPrompt(["building project...", "> "])).toBeNull();
+  });
+});

@@ -160,8 +160,34 @@ const highlightedListDetector: Detector = {
   },
 };
 
+const inputBoxDetector: Detector = {
+  name: "input-box",
+  detect(lines) {
+    const cleaned = lines.map(clean);
+    for (let i = cleaned.length - 1; i >= 0; i--) {
+      if (!/^>\s*$/.test(cleaned[i])) continue; // empty input affordance
+      const q = findQuestionAbove(cleaned, i);
+      if (q.endsWith("?")) {
+        return {
+          tool: inferTool(lines),
+          kind: "freeform",
+          question: q,
+          options: [],
+          signature: computeSignature("freeform", q, []),
+        };
+      }
+    }
+    return null;
+  },
+};
+
 // Detectors are registered by later tasks.
-export const DETECTORS: Detector[] = [numberedListDetector, yesNoDetector, highlightedListDetector];
+export const DETECTORS: Detector[] = [
+  numberedListDetector,
+  yesNoDetector,
+  highlightedListDetector,
+  inputBoxDetector,
+];
 
 export function detectPrompt(lines: string[]): DetectedPrompt | null {
   for (const d of DETECTORS) {
