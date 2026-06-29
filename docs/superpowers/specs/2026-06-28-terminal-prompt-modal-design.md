@@ -5,7 +5,8 @@
 
 ## Objetivo
 
-Cuando una herramienta de IA (Claude Code, Codex) ejecutándose dentro de una
+Cuando **cualquier** herramienta de IA (Claude Code, Codex, Gemini CLI, u otra)
+ejecutándose dentro de una
 terminal de vibeTerm muestra un prompt que espera input del usuario —un permiso
 para editar archivos, ejecutar comandos, una confirmación, o cualquier pregunta—
 el sistema lo detecta y abre un modal global que muestra:
@@ -24,8 +25,12 @@ hizo la pregunta, reflejando el cambio en ese PTY.
   - Confirmaciones simples y/n (`confirm`).
   - Preguntas en lenguaje libre sin opciones (`freeform`) → el modal muestra un
     campo de texto.
-- Herramientas objetivo: **Claude Code** y **Codex** (extensible vía tabla de
-  detectores).
+- **Cualquier herramienta de IA**, no una lista cerrada. La detección es
+  **estructural y agnóstica a la herramienta**: reconoce la *forma* del prompt
+  (lista de opciones numeradas, confirmación y/n, caja de input con pregunta),
+  no la marca concreta. Claude Code, Codex y **Gemini CLI** se validan
+  explícitamente con fixtures, pero cualquier CLI que dibuje un prompt con esa
+  estructura funcionará sin código específico.
 - Funciona igual en modo **Tauri** (escritorio) y **web/remoto** — la detección
   es 100% en el cliente sobre el buffer de xterm.
 
@@ -33,7 +38,7 @@ hizo la pregunta, reflejando el cambio en ese PTY.
 
 | Decisión | Elección |
 |---|---|
-| Alcance de detección | Cualquier pregunta del modelo (select + confirm + freeform) |
+| Alcance de detección | Cualquier pregunta de cualquier IA (select + confirm + freeform), detección estructural agnóstica |
 | Comportamiento del modal | Modal global inmediato; cola interna si hay varios |
 | Envío de la respuesta | Híbrido: tecla directa (número/letra) con fallback a flechas + Enter |
 | Mecanismo de detección | Escaneo del buffer renderizado de xterm (cliente) |
@@ -58,34 +63,46 @@ interface PromptOption {
 }
 
 interface DetectedPrompt {
-  tool: "claude" | "codex" | "generic";
+  tool: string;              // etiqueta best-effort: "claude" | "codex" | "gemini" | "unknown"
   kind: PromptKind;
   question: string;
   options: PromptOption[];   // vacío si freeform
   signature: string;         // hash de question+options para dedupe
 }
 
-// Cada detector:
+// Cada detector es ESTRUCTURAL (reconoce una forma de prompt), no una marca:
 interface Detector {
-  name: string;
+  name: string;              // "numbered-list" | "yes-no" | "input-box"
   detect(lines: string[]): DetectedPrompt | null;
 }
 
 export function detectPrompt(lines: string[]): DetectedPrompt | null;
 ```
 
-**Detectores incluidos:**
+La detección es **agnóstica a la herramienta**: los detectores reconocen la
+*estructura* del prompt, que es muy parecida entre CLIs agénticas (todas usan
+cajas TUI con bordes, marcadores de selección y opciones). El campo `tool` es
+solo una etiqueta *best-effort* (para mostrar/telemetría), inferida de pistas en
+el texto; **no** condiciona la detección. Así, Claude, Codex, Gemini y cualquier
+otra IA futura funcionan con el mismo código.
 
-- **Lista de opciones (`select`)** — Claude/Codex dibujan una caja (bordes
-  `╭─╮` / `│`) con un marcador de selección (`❯` / `›` / `>`) y líneas numeradas
-  (`1. Yes`, `2. Yes, and don't ask again…`, `3. No`). La **pregunta** es la(s)
-  línea(s) inmediatamente anteriores a la lista. Cada opción → `send` = su número.
-- **Confirmación (`confirm`)** — patrón `(y/n)`, `[Y/n]`, `[y/N]` → dos opciones
-  Sí→`y`, No→`n`.
-- **Pregunta libre (`freeform`)** — caja de input visible (`│ >` o equivalente)
-  precedida de una línea que termina en `?`, sin opciones detectadas →
-  `kind: "freeform"`, `options: []`. El modal mostrará textarea; al enviar,
-  `send` = texto del usuario + `\r`.
+**Detectores estructurales incluidos:**
+
+- **Lista de opciones (`select`)** — caja con marcador de selección
+  (`❯` / `›` / `>` / `●` / resaltado) y líneas numeradas
+  (`1. Yes`, `2. Yes, and don't ask again…`, `3. No`). Cubre el formato de
+  Claude, Codex y Gemini. La **pregunta** es la(s) línea(s) inmediatamente
+  anteriores a la lista. Cada opción → `send` = su número.
+- **Confirmación (`confirm`)** — patrón `(y/n)`, `[Y/n]`, `[y/N]`, `(s/n)` → dos
+  opciones Sí→`y`, No→`n`.
+- **Pregunta libre (`freeform`)** — caja de input visible (`│ >`, `> `, o
+  equivalente) precedida de una línea que termina en `?`, sin opciones
+  detectadas → `kind: "freeform"`, `options: []`. El modal mostrará textarea; al
+  enviar, `send` = texto del usuario + `\r`.
+
+Estos tres detectores estructurales cubren prácticamente cualquier CLI de IA. Si
+en el futuro alguna usa un formato distinto, se añade un detector nuevo a la
+tabla sin tocar el resto.
 
 **Híbrido de envío:** cada opción `select` lleva su `send` directo (número/letra).
 Para listas resaltadas **sin** número visible, el detector calcula la posición
@@ -176,10 +193,11 @@ PTY data (onPtyData)
 ## Testing
 
 - **`src/test/promptDetectors.test.ts` (TDD):** fixtures reales del buffer
-  (volcado de permisos reales de Claude y Codex). Casos: lista numerada,
-  confirmación y/n, pregunta libre, y **negativos** (texto normal que NO debe
-  disparar → evitar falsos positivos). Verifica `question`, `options`, `send`,
-  `signature`.
+  (volcado de permisos reales de Claude, Codex **y Gemini CLI**). Casos: lista
+  numerada, confirmación y/n, pregunta libre, y **negativos** (texto normal que
+  NO debe disparar → evitar falsos positivos). Verifica `question`, `options`,
+  `send`, `signature`. Al ser detección estructural, las tres herramientas deben
+  pasar por los mismos detectores genéricos.
 - **`src/test/promptStore.test.ts`:** `enqueue` deduplica por `signature`;
   `resolve` avanza la cola; `dismiss` no reabre; `dismissIfStale` cierra solo el
   obsoleto.
@@ -188,17 +206,19 @@ PTY data (onPtyData)
 
 ## Riesgos conocidos
 
-- **Patrones de los CLIs:** los formatos exactos de Claude/Codex deben
+- **Patrones de los CLIs:** los formatos exactos de Claude/Codex/Gemini deben
   confirmarse contra salida real. Mitigación: capturar fixtures reales durante la
-  implementación y construir los detectores con TDD sobre ellas. La tabla de
-  detectores es extensible/mantenible si un CLI cambia su UI.
+  implementación y construir los detectores estructurales con TDD sobre ellas. La
+  detección genérica cubre CLIs no probadas explícitamente; la tabla de
+  detectores es extensible/mantenible si una herramienta usa una UI distinta.
 - **Falsos positivos en freeform:** es el caso más ambiguo. Mitigación: exigir
   señales fuertes (caja de input visible + línea que termina en `?` + idle) y
   cubrirlo con tests negativos.
 
 ## Fuera de alcance (YAGNI)
 
-- Soporte para CLIs distintos de Claude/Codex (la tabla permite añadirlos luego).
+- Detectores específicos por marca (la detección es genérica/estructural; solo se
+  añade un detector nuevo si alguna CLI usa una forma realmente distinta).
 - Historial/log de prompts respondidos.
 - Configuración de usuario para activar/desactivar la detección (se puede añadir
   después si molesta).
