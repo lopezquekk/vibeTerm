@@ -26,3 +26,66 @@ describe("detectPrompt", () => {
     expect(detectPrompt(["$ ls", "file1  file2", "$ "])).toBeNull();
   });
 });
+
+describe("numbered-list detector", () => {
+  const claude = [
+    "╭──────────────────────────────────────────────╮",
+    "│ Bash command                                  │",
+    "│ npm install                                    │",
+    "│                                                │",
+    "│ Do you want to proceed?                        │",
+    "│ ❯ 1. Yes                                       │",
+    "│   2. Yes, and don't ask again for npm commands │",
+    "│   3. No, and tell Claude what to do differently│",
+    "╰──────────────────────────────────────────────╯",
+  ];
+  it("extracts question and numbered options from a Claude prompt", () => {
+    const p = detectPrompt(claude)!;
+    expect(p).not.toBeNull();
+    expect(p.kind).toBe("select");
+    expect(p.question).toBe("Do you want to proceed?");
+    expect(p.options.map((o) => o.label)).toEqual([
+      "Yes",
+      "Yes, and don't ask again for npm commands",
+      "No, and tell Claude what to do differently",
+    ]);
+    expect(p.options.map((o) => o.send)).toEqual(["1", "2", "3"]);
+  });
+
+  it("detects a Codex prompt without a box (marker only)", () => {
+    const codex = [
+      "Allow Codex to run `git push`?",
+      "",
+      "› 1. Yes",
+      "  2. Yes, don't ask again",
+      "  3. No",
+    ];
+    const p = detectPrompt(codex)!;
+    expect(p.question).toBe("Allow Codex to run `git push`?");
+    expect(p.options).toHaveLength(3);
+    expect(p.tool).toBe("codex");
+  });
+
+  it("detects a Gemini prompt with ● marker inside a box", () => {
+    const gemini = [
+      "╭───────────────────────────╮",
+      "│ Apply this change?         │",
+      "│ ● 1. Yes                   │",
+      "│   2. No                    │",
+      "╰───────────────────────────╯",
+    ];
+    const p = detectPrompt(gemini)!;
+    expect(p.question).toBe("Apply this change?");
+    expect(p.options.map((o) => o.send)).toEqual(["1", "2"]);
+  });
+
+  it("does NOT fire on a plain markdown numbered list", () => {
+    const md = [
+      "Here are the steps:",
+      "1. Install deps",
+      "2. Run the build",
+      "3. Ship it",
+    ];
+    expect(detectPrompt(md)).toBeNull();
+  });
+});

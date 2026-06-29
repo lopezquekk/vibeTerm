@@ -35,8 +35,54 @@ export function findQuestionAbove(cleaned: string[], optIndex: number): string {
   return "";
 }
 
+// Matches an option line, optionally preceded by a selection marker.
+const OPT_RE = new RegExp(`^([${MARKER_CHARS}>]\\s*)?(\\d+)[.)]\\s+(.+?)\\s*$`);
+
+const numberedListDetector: Detector = {
+  name: "numbered-list",
+  detect(lines) {
+    const cleaned = lines.map(clean);
+    for (let i = 0; i < cleaned.length; i++) {
+      const m = cleaned[i].match(OPT_RE);
+      if (!m || m[2] !== "1") continue; // run must start at option 1
+
+      const opts: { num: string; label: string; marker: boolean }[] = [];
+      let expected = 1;
+      let j = i;
+      while (j < cleaned.length) {
+        const mm = cleaned[j].match(OPT_RE);
+        if (!mm || parseInt(mm[2], 10) !== expected) break;
+        opts.push({ num: mm[2], label: mm[3].trim(), marker: !!mm[1] });
+        expected++;
+        j++;
+      }
+      if (opts.length < 2) continue;
+
+      // False-positive guard: a real prompt has a selection marker, a box
+      // border, or a question line ending in "?". A markdown list has none.
+      const questionLine = findQuestionAbove(cleaned, i);
+      const blockHasMarker = opts.some((o) => o.marker);
+      const borderNearby = lines
+        .slice(Math.max(0, i - 1), j + 1)
+        .some(hasBorder);
+      if (!blockHasMarker && !borderNearby && !questionLine.endsWith("?")) continue;
+
+      const options: PromptOption[] = opts.map((o) => ({ label: o.label, send: o.num }));
+      const question = questionLine || "Select an option";
+      return {
+        tool: inferTool(lines),
+        kind: "select",
+        question,
+        options,
+        signature: computeSignature("select", question, options),
+      };
+    }
+    return null;
+  },
+};
+
 // Detectors are registered by later tasks.
-export const DETECTORS: Detector[] = [];
+export const DETECTORS: Detector[] = [numberedListDetector];
 
 export function detectPrompt(lines: string[]): DetectedPrompt | null {
   for (const d of DETECTORS) {
