@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { scanLines } from "../prompt-detection/scan";
 import { usePromptStore } from "../store/promptStore";
+import { useSettingsStore, DEFAULT_SETTINGS } from "../store/settingsStore";
 
 beforeEach(() => {
   usePromptStore.setState({ queue: [], current: null, handled: [] });
+  useSettingsStore.setState({ ...DEFAULT_SETTINGS });
 });
 
 const claude = [
@@ -30,5 +32,31 @@ describe("scanLines", () => {
     scanLines(claude, "tab-7");
     scanLines(["nothing here"], "tab-OTHER");
     expect(usePromptStore.getState().current?.tabId).toBe("tab-7");
+  });
+});
+
+const freeform = [
+  "What would you like me to focus on for the refactor?",
+  "",
+  "│ >                                             │",
+];
+
+describe("scanLines respects settings", () => {
+  it("does not enqueue when promptDetectionEnabled is false", () => {
+    useSettingsStore.setState({ promptDetectionEnabled: false });
+    scanLines(claude, "t1");
+    expect(usePromptStore.getState().current).toBeNull();
+  });
+
+  it("ignores a freeform prompt when detectFreeform is false", () => {
+    useSettingsStore.setState({ detectFreeform: false });
+    scanLines(freeform, "t1");
+    expect(usePromptStore.getState().current).toBeNull();
+  });
+
+  it("still enqueues a select prompt when detectFreeform is false", () => {
+    useSettingsStore.setState({ detectFreeform: false });
+    scanLines(claude, "t1");
+    expect(usePromptStore.getState().current?.prompt.kind).toBe("select");
   });
 });
