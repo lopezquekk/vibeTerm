@@ -8,6 +8,7 @@ import "@xterm/xterm/css/xterm.css";
 import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 import { ErrorBanner } from "./ErrorBanner";
+import { scanLines, readVisibleLines } from "../prompt-detection/scan";
 
 interface Props {
   tabId: string;
@@ -47,6 +48,7 @@ export default function TerminalView({ tabId, path }: Props) {
   const rafRef = useRef<number | null>(null);
   const pendingDataRef = useRef<string>('');
   const outputRafRef = useRef<number | null>(null);
+  const promptScanTimer = useRef<number | null>(null);
   const searchOpenRef = useRef(false);
   const updateTab = useTabStore((s) => s.updateTab);
   const activeTabIdRef = useRef(useTabStore.getState().activeTabId);
@@ -227,6 +229,17 @@ export default function TerminalView({ tabId, path }: Props) {
           outputRafRef.current = null;
         });
       }
+
+      // Debounced prompt detection: when PTY output goes idle, scan the
+      // rendered buffer for an AI permission/question prompt. Best-effort.
+      if (promptScanTimer.current !== null) clearTimeout(promptScanTimer.current);
+      promptScanTimer.current = window.setTimeout(() => {
+        try {
+          scanLines(readVisibleLines(term), tabId);
+        } catch {
+          /* detection must never break the terminal */
+        }
+      }, 350);
     });
 
     // Listen for local server detection and store the URL
@@ -271,6 +284,10 @@ export default function TerminalView({ tabId, path }: Props) {
       if (outputRafRef.current !== null) {
         cancelAnimationFrame(outputRafRef.current);
         outputRafRef.current = null;
+      }
+      if (promptScanTimer.current !== null) {
+        clearTimeout(promptScanTimer.current);
+        promptScanTimer.current = null;
       }
       pendingDataRef.current = '';
       unlisten.current?.();
