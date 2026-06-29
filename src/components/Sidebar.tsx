@@ -4,6 +4,7 @@ import { useTabStore, Tab, TabType } from "../store/tabStore";
 import BranchPicker from "./BranchPicker";
 import RemoteAccessPanel from "./RemoteAccessPanel";
 import { TYPE_ICONS, TYPE_COLORS } from "./tabTheme";
+import { usePromptStore } from "../store/promptStore";
 
 // Worktree tabs use violet dashed border
 const WORKTREE_COLOR = "#8b5cf6";
@@ -55,6 +56,10 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
   const [editValue, setEditValue] = useState(tab.alias);
   const [branchAnchor, setBranchAnchor] = useState<DOMRect | null>(null);
   const branchBtnRef = useRef<HTMLButtonElement>(null);
+
+  const hasPrompt = usePromptStore(
+    (s) => s.current?.tabId === tab.id || s.queue.some((q) => q.tabId === tab.id)
+  );
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -123,7 +128,9 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
         )}
 
         {/* Activity / status indicator */}
-        {tab.hasActivity ? (
+        {hasPrompt ? (
+          <span className="text-amber-400 text-xs flex-shrink-0 animate-pulse" title="Esperando tu respuesta">❗</span>
+        ) : tab.hasActivity ? (
           <span className="w-2 h-2 rounded-full flex-shrink-0 bg-blue-400 animate-pulse" title="New activity" />
         ) : (
           <span
