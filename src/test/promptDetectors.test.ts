@@ -103,3 +103,26 @@ describe("yes-no detector", () => {
     expect(p.kind).toBe("confirm");
   });
 });
+
+describe("highlighted-list detector (arrow fallback)", () => {
+  const box = [
+    "╭──────────────────────────╮",
+    "│ Select an action          │",
+    "│ ❯ Allow once              │",
+    "│   Allow always            │",
+    "│   Deny                     │",
+    "╰──────────────────────────╯",
+  ];
+  it("extracts non-numbered options and computes arrow sends", () => {
+    const p = detectPrompt(box)!;
+    expect(p.kind).toBe("select");
+    expect(p.question).toBe("Select an action");
+    expect(p.options.map((o) => o.label)).toEqual(["Allow once", "Allow always", "Deny"]);
+    // marker on first item → first selects with Enter, others arrow down then Enter
+    expect(p.options.map((o) => o.send)).toEqual(["\r", "\x1b[B\r", "\x1b[B\x1b[B\r"]);
+  });
+
+  it("does NOT fire without a box or question context", () => {
+    expect(detectPrompt(["❯ just one highlighted line"])).toBeNull();
+  });
+});

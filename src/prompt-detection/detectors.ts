@@ -106,8 +106,59 @@ const yesNoDetector: Detector = {
   },
 };
 
+const MARKER_LINE_RE = new RegExp(`^[${MARKER_CHARS}]\\s+(.+?)\\s*$`);
+
+const highlightedListDetector: Detector = {
+  name: "highlighted-list",
+  detect(lines) {
+    const cleaned = lines.map(clean);
+    // Only fire inside a TUI box (guards against prose with a stray "❯ ").
+    if (!lines.some(hasBorder)) return null;
+
+    let start = -1;
+    for (let i = 0; i < cleaned.length; i++) {
+      if (MARKER_LINE_RE.test(cleaned[i]) && !/^[^\s]*\d+[.)]/.test(cleaned[i])) {
+        start = i;
+        break;
+      }
+    }
+    if (start === -1) return null;
+
+    // Gather the marker line plus contiguous non-empty sibling lines that are
+    // not borders, questions, or markered again.
+    const items: { label: string; marker: boolean }[] = [];
+    for (let k = start; k < cleaned.length; k++) {
+      const c = cleaned[k];
+      if (!c) break;
+      const markered = MARKER_LINE_RE.test(c);
+      const label = markered ? c.match(MARKER_LINE_RE)![1].trim() : c;
+      if (label.endsWith("?")) break; // a trailing question is not an option
+      items.push({ label, marker: markered });
+    }
+    if (items.length < 2) return null;
+
+    const markerIndex = Math.max(0, items.findIndex((it) => it.marker));
+    const options: PromptOption[] = items.map((it, idx) => {
+      const delta = idx - markerIndex;
+      const arrows = delta === 0
+        ? ""
+        : (delta > 0 ? "\x1b[B" : "\x1b[A").repeat(Math.abs(delta));
+      return { label: it.label, send: arrows + "\r" };
+    });
+
+    const question = findQuestionAbove(cleaned, start) || "Select an option";
+    return {
+      tool: inferTool(lines),
+      kind: "select",
+      question,
+      options,
+      signature: computeSignature("select", question, options),
+    };
+  },
+};
+
 // Detectors are registered by later tasks.
-export const DETECTORS: Detector[] = [numberedListDetector, yesNoDetector];
+export const DETECTORS: Detector[] = [numberedListDetector, yesNoDetector, highlightedListDetector];
 
 export function detectPrompt(lines: string[]): DetectedPrompt | null {
   for (const d of DETECTORS) {
