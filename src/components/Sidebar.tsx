@@ -58,7 +58,9 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
   const branchBtnRef = useRef<HTMLButtonElement>(null);
 
   const hasPrompt = usePromptStore(
-    (s) => s.current?.tabId === tab.id || s.queue.some((q) => q.tabId === tab.id)
+    (s) =>
+      s.current?.tabId.replace(/-split$/, "") === tab.id ||
+      s.queue.some((q) => q.tabId.replace(/-split$/, "") === tab.id)
   );
 
   const handleDoubleClick = (e: React.MouseEvent) => {

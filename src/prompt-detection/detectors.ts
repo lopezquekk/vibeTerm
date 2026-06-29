@@ -1,4 +1,4 @@
-import { DetectedPrompt, Detector, PromptOption } from "./types";
+import { DetectedPrompt, Detector, PromptKind, PromptOption } from "./types";
 
 export const MARKER_CHARS = "❯›▶●◉";
 const BORDER_CHARS = "│╭╮╰╯─┌┐└┘|";
@@ -11,7 +11,7 @@ export function inferTool(lines: string[]): string {
   return "unknown";
 }
 
-export function computeSignature(kind: string, question: string, options: PromptOption[]): string {
+export function computeSignature(kind: PromptKind, question: string, options: PromptOption[]): string {
   return [kind, question, ...options.map((o) => o.label)].join("§");
 }
 
@@ -163,6 +163,7 @@ const highlightedListDetector: Detector = {
 const inputBoxDetector: Detector = {
   name: "input-box",
   detect(lines) {
+    if (!lines.some(hasBorder)) return null; // freeform only inside a TUI box; excludes bare shell REPLs
     const cleaned = lines.map(clean);
     for (let i = cleaned.length - 1; i >= 0; i--) {
       if (!/^>\s*$/.test(cleaned[i])) continue; // empty input affordance

@@ -14,6 +14,7 @@ interface PromptStore {
   resolve: () => void;
   dismiss: () => void;
   dismissIfStale: (signature: string) => void;
+  reconcileTab: (tabId: string, liveSignature: string | null) => void;
 }
 
 export const usePromptStore = create<PromptStore>()((set) => ({
@@ -28,7 +29,7 @@ export const usePromptStore = create<PromptStore>()((set) => ({
         s.handled.includes(sig) ||
         s.current?.prompt.signature === sig ||
         s.queue.some((q) => q.prompt.signature === sig);
-      if (known) return s;
+      if (known) return {};
       if (!s.current) return { current: p };
       return { queue: [...s.queue, p] };
     }),
@@ -41,6 +42,24 @@ export const usePromptStore = create<PromptStore>()((set) => ({
 
   dismissIfStale: (signature) =>
     set((s) => (s.current?.prompt.signature === signature ? advance(s) : s)),
+
+  reconcileTab: (tabId, liveSignature) =>
+    set((s) => {
+      const prunedQueue = s.queue.filter(
+        (q) => !(q.tabId === tabId && q.prompt.signature !== liveSignature)
+      );
+      if (
+        s.current &&
+        s.current.tabId === tabId &&
+        s.current.prompt.signature !== liveSignature
+      ) {
+        const handled = [...s.handled, s.current.prompt.signature].slice(-200);
+        const [next, ...rest] = prunedQueue;
+        return { handled, current: next ?? null, queue: rest };
+      }
+      if (prunedQueue.length !== s.queue.length) return { queue: prunedQueue };
+      return {};
+    }),
 }));
 
 // Mark current handled and promote the next queued prompt.

@@ -17,11 +17,6 @@ export function readVisibleLines(term: Terminal): string[] {
 export function scanLines(lines: string[], tabId: string): void {
   const prompt = detectPrompt(lines);
   const store = usePromptStore.getState();
-  if (prompt) {
-    store.enqueue({ tabId, prompt });
-  } else if (store.current && store.current.tabId === tabId) {
-    // Nothing detected anymore for this tab → the user likely answered in the
-    // terminal directly. Drop the stale modal.
-    store.dismissIfStale(store.current.prompt.signature);
-  }
+  if (prompt) store.enqueue({ tabId, prompt });
+  store.reconcileTab(tabId, prompt ? prompt.signature : null);
 }

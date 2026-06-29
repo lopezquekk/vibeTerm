@@ -36,7 +36,8 @@ export default function PermissionModal() {
 
   if (!current) return null;
 
-  const tab = tabs.find((t) => t.id === current.tabId);
+  const baseTabId = current.tabId.replace(/-split$/, "");
+  const tab = tabs.find((t) => t.id === baseTabId);
   const accent = tab ? TYPE_COLORS[tab.type] : "#3b82f6";
   const icon = tab ? TYPE_ICONS[tab.type] : "◈";
   const alias = tab?.alias ?? current.tabId;
@@ -45,7 +46,7 @@ export default function PermissionModal() {
   const send = (seq: string) => {
     try {
       transport.ptyWrite(current.tabId, seq);
-      setActiveTab(current.tabId); // jump to the originating terminal on answer
+      setActiveTab(baseTabId); // jump to the originating terminal on answer
       resolve();
     } catch (e: any) {
       setError(e?.message ?? String(e));

@@ -148,4 +148,8 @@ describe("input-box detector (freeform)", () => {
     expect(detectPrompt(["> "])).toBeNull();
     expect(detectPrompt(["building project...", "> "])).toBeNull();
   });
+
+  it("does NOT fire on a bare REPL prompt even if a question is above", () => {
+    expect(detectPrompt(["Did that work?", "", "> "])).toBeNull();
+  });
 });
