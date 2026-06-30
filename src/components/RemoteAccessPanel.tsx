@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import QRCode from "qrcode";
 import { useTabStore } from "../store/tabStore";
 import { ErrorBanner } from "./ErrorBanner";
+import { Toggle } from "./ui/Toggle";
 
 interface ServerInfo {
   port: number; token: string; local_ip: string; tailscale_ip: string | null;
@@ -84,12 +85,7 @@ export default function RemoteAccessPanel() {
     <div className="px-3 py-2 border-t border-border mt-auto shrink-0">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Remote</span>
-        <button
-          onClick={toggle} disabled={loading}
-          className={`relative w-8 h-4 rounded-full transition-colors ${on ? "bg-accent" : "bg-zinc-700"} ${loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-        >
-          <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
-        </button>
+        <Toggle checked={on} onChange={toggle} disabled={loading} />
       </div>
 
       {error && (
