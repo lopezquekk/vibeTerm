@@ -1,4 +1,5 @@
 import { useTabStore } from "../store/tabStore";
+import { ConnectionBadge } from "./ConnectionBadge";
 
 export default function StatusBar() {
   const { tabs, activeTabId } = useTabStore();
@@ -46,6 +47,7 @@ export default function StatusBar() {
 
       <div className="flex-1" />
 
+      <ConnectionBadge />
       <span className="text-zinc-600">vibeTerm</span>
     </div>
   );

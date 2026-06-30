@@ -8,6 +8,27 @@ import { usePromptStore } from "../store/promptStore";
 import { useUiStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
 
+const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+
+const TYPE_ICONS: Record<TabType, string> = {
+  project: "◈",
+  frontend: "</>",
+  backend: "⊛",
+  infra: "⚙",
+  logs: "≡",
+  database: "⊕",
+};
+
+// Left-border accent color per tab type
+const TYPE_COLORS: Record<TabType, string> = {
+  project:  "#3b82f6", // blue
+  frontend: "#a855f7", // purple
+  backend:  "#4ade80", // green
+  infra:    "#f97316", // orange
+  logs:     "#fbbf24", // yellow
+  database: "#22d3ee", // cyan
+};
+
 // Worktree tabs use violet dashed border
 const WORKTREE_COLOR = "#8b5cf6";
 
@@ -66,6 +87,7 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
   );
 
   const handleDoubleClick = (e: React.MouseEvent) => {
+    if (!IS_TAURI) return;
     e.stopPropagation();
     setEditing(true);
     setEditValue(tab.alias);
@@ -240,13 +262,15 @@ export default function Sidebar() {
         </span>
 
         {/* New context */}
-        <button
-          className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors text-lg leading-none"
-          onClick={() => addTab({ alias: "New Context", path: "~" })}
-          title="New context"
-        >
-          +
-        </button>
+        {IS_TAURI && (
+          <button
+            className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors text-lg leading-none"
+            onClick={() => addTab({ alias: "New Context", path: "~" })}
+            title="New context"
+          >
+            +
+          </button>
+        )}
 
         {/* Pin button — only shown when floating, anchors sidebar to docked */}
         {sidebarMode === "floating" && (
@@ -289,6 +313,11 @@ export default function Sidebar() {
           </svg>
         </button>
       </div>
+
+      {/* Remote caption */}
+      {!IS_TAURI && (
+        <p className="px-3 py-1 text-[10px] text-zinc-600">Tabs are controlled by the desktop</p>
+      )}
 
       {/* Tab list */}
       <div className="flex-1 overflow-y-auto py-2">

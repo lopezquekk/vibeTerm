@@ -13,6 +13,9 @@ import {
   ImageDiffView,
 } from "../utils/diff";
 import { useErrorHandler } from "../hooks/useErrorHandler";
+import { useConnectionStore } from "../store/connectionStore";
+
+const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,12 +56,19 @@ export default function GitHistoryPanel({ tabId }: { tabId: string }) {
     const load = () =>
       transport.getGitLog(tab.path)
         .then(setCommits)
-        .catch((err) => { toastError(err); setCommits([]); });
+        .catch((err) => {
+          if (IS_TAURI || useConnectionStore.getState().status === "connected") toastError(err);
+          setCommits([]);
+        });
 
     setLoading(true);
     transport.getGitLog(tab.path)
       .then((list) => { setCommits(list); setLoading(false); })
-      .catch((err) => { toastError(err); setCommits([]); setLoading(false); });
+      .catch((err) => {
+        if (IS_TAURI || useConnectionStore.getState().status === "connected") toastError(err);
+        setCommits([]);
+        setLoading(false);
+      });
 
     const id = setInterval(load, 5000);
     return () => clearInterval(id);

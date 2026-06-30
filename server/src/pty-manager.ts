@@ -79,7 +79,13 @@ export function createSession(
     if (session.ws?.readyState === 1 /* OPEN */) session.ws.send(data);
   });
 
-  p.onExit(() => { sessions.delete(sessionId); });
+  p.onExit(() => {
+    const s = sessions.get(sessionId);
+    if (s?.ws && s.ws.readyState === 1 /* OPEN */) {
+      try { s.ws.send(JSON.stringify({ type: "exit" })); s.ws.close(1000, "pty-exit"); } catch { /* ignore */ }
+    }
+    sessions.delete(sessionId);
+  });
 
   ws.send(JSON.stringify({ type: "pty-ready" }));
 }

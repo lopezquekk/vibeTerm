@@ -36,6 +36,16 @@ export default function RemoteAccessPanel() {
     return () => { p.then((fn) => fn()); };
   }, []);
 
+  // Mirror the desktop's tab list to the server whenever the remote server is on or
+  // the tabs change, so connected browsers reflect exactly the tabs open here.
+  useEffect(() => {
+    if (!IS_TAURI || !on) return;
+    const payload = JSON.stringify(
+      tabs.map((t) => ({ id: t.id, alias: t.alias, path: t.path, type: t.type }))
+    );
+    invoke("set_remote_tabs", { tabsJson: payload }).catch(() => {});
+  }, [on, tabs]);
+
   const primaryIp = info?.tailscale_ip ?? info?.local_ip;
   const qrUrl = primaryIp ? `http://${primaryIp}:${info!.port}/#token=${info!.token}` : null;
 

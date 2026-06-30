@@ -70,12 +70,21 @@ export function setupWsServer(wss: WebSocketServer, _getToken: () => string): vo
 
     ws.on("message", (raw) => {
       const msg = raw.toString();
-      try {
-        const parsed = JSON.parse(msg);
-        if (parsed.type === "resize") ptyManager.resizeSession(sessionId, parsed.cols, parsed.rows);
-      } catch {
-        ptyManager.writeToSession(sessionId, msg);
+      // Control messages are JSON objects (e.g. {"type":"resize"}). Everything else is
+      // raw PTY input. Guard on a leading "{" because JSON.parse accepts bare values like
+      // "5", "0", "true" or "null" as valid JSON — without this guard those keystrokes
+      // parse successfully, fail the resize check, and never reach the PTY (digits and
+      // such would silently vanish on the remote terminal).
+      if (msg.charCodeAt(0) === 0x7b /* "{" */) {
+        try {
+          const parsed = JSON.parse(msg);
+          if (parsed && parsed.type === "resize") {
+            ptyManager.resizeSession(sessionId, parsed.cols, parsed.rows);
+            return;
+          }
+        } catch { /* not valid JSON — fall through and treat as raw input */ }
       }
+      ptyManager.writeToSession(sessionId, msg);
     });
 
     ws.on("close", () => ptyManager.detachSession(sessionId));

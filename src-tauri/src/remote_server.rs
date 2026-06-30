@@ -111,9 +111,17 @@ pub async fn start_remote_server(
     let token = gen_token();
     let paths_json = serde_json::to_string(&allowed_paths).unwrap_or_else(|_| "[]".to_string());
 
+    // Bind a fixed port (8080) instead of an ephemeral one (--port 0).
+    // Corporate endpoint-security network filters (e.g. CrowdStrike Falcon) on managed
+    // Macs reset inbound TCP connections to the LAN IP on arbitrary/high ports — so a
+    // random port makes remote access work only via localhost and fail from other
+    // devices ("network connection lost"). Port 8080 is the standard HTTP-alt port that
+    // such policies allow through; it's the one observed to pass the filter.
+    const REMOTE_PORT: &str = "8080";
+
     let mut child = Command::new(&node)
         .arg(&script)
-        .args(["--port", "0", "--token", &token, "--allowed-paths", &paths_json])
+        .args(["--port", REMOTE_PORT, "--token", &token, "--allowed-paths", &paths_json])
         .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())
         .spawn().map_err(|e| format!("Failed to start server: {e}"))?;
 
@@ -218,6 +226,22 @@ pub fn add_remote_allowed_path(
     if let Some(stdin) = srv.stdin.as_ref() {
         let escaped = path.replace('"', "\\\"");
         let msg = format!("{{\"type\":\"add-path\",\"path\":\"{escaped}\"}}\n");
+        stdin.lock().map_err(|e| e.to_string())?
+            .write_all(msg.as_bytes()).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Push the desktop's full tab list to the server so the remote browser can mirror it.
+/// `tabs_json` is an already-serialized JSON array of {id, alias, path, type}.
+#[tauri::command]
+pub fn set_remote_tabs(
+    state: tauri::State<'_, Arc<Mutex<RemoteServer>>>,
+    tabs_json: String,
+) -> Result<(), String> {
+    let srv = state.lock().map_err(|e| e.to_string())?;
+    if let Some(stdin) = srv.stdin.as_ref() {
+        let msg = format!("{{\"type\":\"set-tabs\",\"tabs\":{tabs_json}}}\n");
         stdin.lock().map_err(|e| e.to_string())?
             .write_all(msg.as_bytes()).map_err(|e| e.to_string())?;
     }

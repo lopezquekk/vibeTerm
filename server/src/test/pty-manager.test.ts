@@ -31,16 +31,20 @@ import type WebSocket from "ws";
 
 function makeMockPty() {
   const onDataCallbacks: Array<(data: string) => void> = [];
+  const onExitCallbacks: Array<(e: { exitCode: number; signal: number }) => void> = [];
   const mockPty = {
     onData: vi.fn((cb: (data: string) => void) => {
       onDataCallbacks.push(cb);
       return { dispose: vi.fn() };
     }),
-    onExit: vi.fn(),
+    onExit: vi.fn((cb: (e: { exitCode: number; signal: number }) => void) => {
+      onExitCallbacks.push(cb);
+    }),
     write: vi.fn(),
     resize: vi.fn(),
     kill: vi.fn(),
     _triggerData: (d: string) => onDataCallbacks.forEach((cb) => cb(d)),
+    _triggerExit: () => onExitCallbacks.forEach((cb) => cb({ exitCode: 0, signal: 0 })),
   };
   return mockPty;
 }
@@ -170,5 +174,17 @@ describe("killSession", () => {
     // Further attach should return false — session is gone
     const ws2 = makeMockWs();
     expect(attachSession("sess-kill", ws2)).toBe(false);
+  });
+});
+
+describe("createSession exit handling", () => {
+  it("notifies the ws and closes 1000 when the pty exits", () => {
+    const mockPty = makeMockPty();
+    vi.mocked(nodePty.spawn).mockReturnValue(mockPty as any);
+    const ws = makeMockWs();
+    createSession("sess-exit", "~", 80, 24, ws);
+    mockPty._triggerExit();
+    expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ type: "exit" }));
+    expect(ws.close).toHaveBeenCalledWith(1000, "pty-exit");
   });
 });

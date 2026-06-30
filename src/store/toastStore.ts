@@ -26,10 +26,9 @@ export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
   addToast: (message, type) =>
     set((s) => {
+      if (s.toasts.some((t) => t.message === message && t.type === type)) return s;
       const toast: Toast = { id: makeId(), message, type };
-      // Keep at most 3 visible at once; oldest drops off
-      const toasts = [...s.toasts, toast].slice(-3);
-      return { toasts };
+      return { toasts: [...s.toasts, toast].slice(-3) };
     }),
   dismissToast: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),

@@ -41,6 +41,8 @@ interface TabStore {
   setActivePanelTab: (tab: TabStore["activePanelTab"]) => void;
   setSidebarMode: (mode: SidebarMode) => void;
   reorderTabs: (from: number, to: number) => void;
+  /** Remote (browser) only: reconcile local tabs to exactly match the desktop's. */
+  mirrorRemoteTabs: (remote: { id: string; alias: string; path: string; type: string }[]) => void;
 }
 
 function generateId() {
@@ -111,6 +113,42 @@ export const useTabStore = create<TabStore>()(
           const [moved] = tabs.splice(from, 1);
           tabs.splice(to, 0, moved);
           return { tabs };
+        }),
+
+      mirrorRemoteTabs: (remote) =>
+        set((s) => {
+          const byId = new Map(s.tabs.map((t) => [t.id, t]));
+          // Rebuild in the desktop's order. Reuse the existing tab object when its
+          // visible fields are unchanged so its TerminalView (keyed by id) is never
+          // remounted — only alias/path/type updates flow through.
+          const tabs = remote.map((r) => {
+            const existing = byId.get(r.id);
+            if (existing) {
+              if (existing.alias === r.alias && existing.path === r.path && existing.type === r.type) {
+                return existing;
+              }
+              return { ...existing, alias: r.alias, path: r.path, type: r.type as TabType };
+            }
+            return {
+              id: r.id,
+              alias: r.alias,
+              path: r.path,
+              type: (r.type as TabType) ?? "project",
+              status: "idle" as TabStatus,
+              git: null,
+              sessionId: null,
+              detectedPort: null,
+              hasActivity: false,
+              worktreeOf: null,
+            };
+          });
+          const unchanged =
+            tabs.length === s.tabs.length && tabs.every((t, i) => t === s.tabs[i]);
+          const activeTabId = tabs.some((t) => t.id === s.activeTabId)
+            ? s.activeTabId
+            : (tabs[0]?.id ?? null);
+          if (unchanged && activeTabId === s.activeTabId) return s;
+          return { tabs, activeTabId };
         }),
     }),
     {

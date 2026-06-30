@@ -218,6 +218,7 @@ pub fn run() {
             remote_server::get_remote_server_status,
             remote_server::regenerate_remote_token,
             remote_server::add_remote_allowed_path,
+            remote_server::set_remote_tabs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running vibeterm");
