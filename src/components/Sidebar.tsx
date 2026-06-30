@@ -3,6 +3,10 @@ import { transport } from "../transport/factory";
 import { useTabStore, Tab, TabType } from "../store/tabStore";
 import BranchPicker from "./BranchPicker";
 import RemoteAccessPanel from "./RemoteAccessPanel";
+import { TYPE_ICONS, TYPE_COLORS } from "./tabTheme";
+import { usePromptStore } from "../store/promptStore";
+import { useUiStore } from "../store/uiStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 const IS_TAURI = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
 
@@ -76,6 +80,12 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
   const [branchAnchor, setBranchAnchor] = useState<DOMRect | null>(null);
   const branchBtnRef = useRef<HTMLButtonElement>(null);
 
+  const hasPrompt = usePromptStore(
+    (s) =>
+      s.current?.tabId.replace(/-split$/, "") === tab.id ||
+      s.queue.some((q) => q.tabId.replace(/-split$/, "") === tab.id)
+  );
+
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (!IS_TAURI) return;
     e.stopPropagation();
@@ -92,14 +102,22 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
 
   const shortPath = tab.path.replace(/^\/Users\/[^/]+/, "~");
 
-  const borderColor = isWorktree ? WORKTREE_COLOR : TYPE_COLORS[tab.type];
+  const accent = isWorktree ? WORKTREE_COLOR : TYPE_COLORS[tab.type];
 
   return (
     <div
-      style={{ borderColor }}
-      className={`group flex flex-col px-3 py-2.5 cursor-pointer rounded-md mb-1 transition-colors border
+      style={{
+        // Active: full-strength type color border + tinted bg + glow.
+        // Inactive: dimmed border so the active tab clearly stands out.
+        borderColor: isActive ? accent : `${accent}33`,
+        borderLeftColor: accent,
+        borderLeftWidth: isActive ? "4px" : "2px",
+        backgroundColor: isActive ? `${accent}22` : undefined,
+        boxShadow: isActive ? `0 0 0 1px ${accent}66, 0 0 12px ${accent}40` : undefined,
+      }}
+      className={`group flex flex-col px-3 py-2.5 cursor-pointer rounded-md mb-1 transition-all border
         ${isWorktree ? "ml-4 mr-2 border-dashed" : "mx-2"}
-        ${isActive ? "bg-sidebar-active" : "hover:bg-sidebar-hover"}`}
+        ${isActive ? "" : "opacity-75 hover:opacity-100 hover:bg-sidebar-hover"}`}
       onClick={() => !editing && setActiveTab(tab.id)}
       onDoubleClick={handleDoubleClick}
     >
@@ -130,13 +148,15 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <span className="flex-1 text-sm font-medium text-zinc-100 truncate">
+          <span className={`flex-1 text-sm truncate ${isActive ? "font-semibold text-white" : "font-medium text-zinc-100"}`}>
             {tab.alias}
           </span>
         )}
 
         {/* Activity / status indicator */}
-        {tab.hasActivity ? (
+        {hasPrompt ? (
+          <span className="text-amber-400 text-xs flex-shrink-0 animate-pulse" title="Esperando tu respuesta">❗</span>
+        ) : tab.hasActivity ? (
           <span className="w-2 h-2 rounded-full flex-shrink-0 bg-blue-400 animate-pulse" title="New activity" />
         ) : (
           <span
@@ -151,17 +171,16 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
         )}
 
         {/* Remove button */}
-        {IS_TAURI && (
-          <button
-            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 text-xs ml-1 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation();
-              removeTab(tab.id);
-            }}
-          >
-            ✕
-          </button>
-        )}
+        <button
+          className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 text-xs ml-1 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (useSettingsStore.getState().confirmTabClose && !window.confirm(`¿Cerrar "${tab.alias}"?`)) return;
+            removeTab(tab.id);
+          }}
+        >
+          ✕
+        </button>
       </div>
 
       {/* Git + path row */}
@@ -232,6 +251,7 @@ function TabItem({ tab, isActive, isWorktree = false }: { tab: Tab; isActive: bo
 
 export default function Sidebar() {
   const { tabs, activeTabId, addTab, sidebarMode, setSidebarMode } = useTabStore();
+  const openSettings = useUiStore((s) => s.openSettings);
 
   return (
     <div className="flex flex-col w-64 flex-shrink-0 bg-sidebar border-r border-border h-full">
@@ -269,6 +289,18 @@ export default function Sidebar() {
             </svg>
           </button>
         )}
+
+        {/* Settings */}
+        <button
+          className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-accent hover:bg-zinc-700 transition-colors"
+          title="Ajustes"
+          onClick={openSettings}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
 
         {/* Collapse button — hides the sidebar */}
         <button

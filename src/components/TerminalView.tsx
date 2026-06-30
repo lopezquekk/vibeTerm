@@ -9,6 +9,8 @@ import "@xterm/xterm/css/xterm.css";
 import { transport } from "../transport/factory";
 import { useTabStore } from "../store/tabStore";
 import { ErrorBanner } from "./ErrorBanner";
+import { scanLines, readVisibleLines } from "../prompt-detection/scan";
+import { useSettingsStore } from "../store/settingsStore";
 
 interface Props {
   tabId: string;
@@ -49,6 +51,7 @@ export default function TerminalView({ tabId, path }: Props) {
   const scheduleFitRef = useRef<() => void>(() => {});
   const pendingDataRef = useRef<string>('');
   const outputRafRef = useRef<number | null>(null);
+  const promptScanTimer = useRef<number | null>(null);
   const searchOpenRef = useRef(false);
   const updateTab = useTabStore((s) => s.updateTab);
   const activeTabIdRef = useRef(useTabStore.getState().activeTabId);
@@ -121,10 +124,10 @@ export default function TerminalView({ tabId, path }: Props) {
         brightWhite: "#ffffff",
       },
       fontFamily: "JetBrains Mono, Fira Code, Cascadia Code, Menlo, monospace",
-      fontSize: 13,
+      fontSize: useSettingsStore.getState().fontSize,
       lineHeight: 1.0,
-      cursorBlink: true,
-      scrollback: 5000,
+      cursorBlink: useSettingsStore.getState().cursorBlink,
+      scrollback: useSettingsStore.getState().scrollback,
       allowProposedApi: true,
     });
 
@@ -233,15 +236,31 @@ export default function TerminalView({ tabId, path }: Props) {
           outputRafRef.current = null;
         });
       }
+
+      // Debounced prompt detection: when PTY output goes idle, scan the
+      // rendered buffer for an AI permission/question prompt. Best-effort.
+      const detectSettings = useSettingsStore.getState();
+      if (detectSettings.promptDetectionEnabled) {
+        if (promptScanTimer.current !== null) clearTimeout(promptScanTimer.current);
+        promptScanTimer.current = window.setTimeout(() => {
+          try {
+            scanLines(readVisibleLines(term), tabId);
+          } catch {
+            /* detection must never break the terminal */
+          }
+        }, detectSettings.promptScanDebounceMs);
+      }
     });
 
     // Listen for local server detection and store the URL
     unlistenPort.current = transport.onPortDetected(tabId, (port) => {
+      if (!useSettingsStore.getState().portDetection) return;
       updateTab(tabId, { detectedPort: port });
     });
 
     // Listen for CWD changes (OSC 7) and update the store
     unlistenCwd.current = transport.onCwdChanged(tabId, (newPath) => {
+      if (!useSettingsStore.getState().cwdTracking) return;
       updateTab(tabId, { path: newPath });
       transport.getGitStatus(newPath)
         .then((git) => updateTab(tabId, { git }))
@@ -278,6 +297,10 @@ export default function TerminalView({ tabId, path }: Props) {
         cancelAnimationFrame(outputRafRef.current);
         outputRafRef.current = null;
       }
+      if (promptScanTimer.current !== null) {
+        clearTimeout(promptScanTimer.current);
+        promptScanTimer.current = null;
+      }
       pendingDataRef.current = '';
       unlisten.current?.();
       unlistenCwd.current?.();
@@ -287,6 +310,26 @@ export default function TerminalView({ tabId, path }: Props) {
       if (ptyStarted) transport.ptyClose(tabId).catch(console.error);
       term.dispose();
     };
+  }, [tabId]);
+
+  // Apply appearance settings live to this terminal when they change.
+  useEffect(() => {
+    return useSettingsStore.subscribe((s, prev) => {
+      const term = termRef.current;
+      if (!term) return;
+      try {
+        let needsRefit = false;
+        if (s.fontSize !== prev.fontSize) { term.options.fontSize = s.fontSize; needsRefit = true; }
+        if (s.cursorBlink !== prev.cursorBlink) { term.options.cursorBlink = s.cursorBlink; }
+        if (s.scrollback !== prev.scrollback) { term.options.scrollback = s.scrollback; }
+        if (needsRefit) {
+          fitRef.current?.fit();
+          transport.ptyResize(tabId, term.cols, term.rows);
+        }
+      } catch {
+        /* terminal may be disposed */
+      }
+    });
   }, [tabId]);
 
   const findNext = () => {
