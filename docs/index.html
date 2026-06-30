@@ -191,6 +191,13 @@
           <h3 class="text-lg font-bold text-on-surface tracking-tight">Sidebar Modes</h3>
           <p class="text-on-surface-variant leading-relaxed text-sm">Docked, floating (Arc-style), or hidden. Toggle with <code class="font-label text-xs text-primary px-1">⌘\</code> for a cleaner view.</p>
         </div>
+        <div class="space-y-4">
+          <div class="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-container-highest/60 text-primary">
+            <span class="material-symbols-outlined">psychology</span>
+          </div>
+          <h3 class="text-lg font-bold text-on-surface tracking-tight">AI Prompt Detection</h3>
+          <p class="text-on-surface-variant leading-relaxed text-sm">Detects Claude and Gemini CLI permission prompts and surfaces an interactive modal — approve or deny without touching the terminal.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -259,6 +266,109 @@
           <div class="pt-2">
             <h3 class="text-2xl font-bold text-on-surface mb-4">Inspect git inline</h3>
             <p class="text-on-surface-variant text-lg leading-relaxed">Need to see what changed? Click any branch or commit in the sidebar to see a full visual diff right where you're already typing.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Remote Access Spotlight -->
+  <section class="py-32 bg-surface-container-low/40 backdrop-blur-sm">
+    <div class="max-w-7xl mx-auto px-8">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+        <!-- Text -->
+        <div class="space-y-8">
+          <div>
+            <span class="font-label text-[0.7rem] uppercase tracking-widest text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">New</span>
+          </div>
+          <h2 class="text-[2.5rem] font-bold leading-tight tracking-tighter text-on-surface">
+            Your terminal,<br/><span class="text-primary">from anywhere.</span>
+          </h2>
+          <p class="text-on-surface-variant text-lg leading-relaxed">
+            Enable Remote Access and vibeTerm spawns a local web server — open your phone browser, connect over Tailscale, and get a full PTY session with git sidebar, no app install required.
+          </p>
+          <ul class="space-y-5">
+            <li class="flex items-start gap-4">
+              <span class="material-symbols-outlined text-primary mt-0.5">smartphone</span>
+              <div>
+                <span class="text-on-surface font-medium">Full PTY on mobile</span>
+                <p class="text-on-surface-variant text-sm mt-0.5">Resize-aware, iOS-keyboard-safe terminal running your real shell session.</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-4">
+              <span class="material-symbols-outlined text-primary mt-0.5">account_tree</span>
+              <div>
+                <span class="text-on-surface font-medium">Git sidebar included</span>
+                <p class="text-on-surface-variant text-sm mt-0.5">Branch, status, and diff view travel with you to the mobile client.</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-4">
+              <span class="material-symbols-outlined text-primary mt-0.5">lock</span>
+              <div>
+                <span class="text-on-surface font-medium">Token-protected</span>
+                <p class="text-on-surface-variant text-sm mt-0.5">Each session generates a unique token. Pair with Tailscale for LAN-only exposure.</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-4">
+              <span class="material-symbols-outlined text-primary mt-0.5">toggle_on</span>
+              <div>
+                <span class="text-on-surface font-medium">One toggle to enable</span>
+                <p class="text-on-surface-variant text-sm mt-0.5">Flip the Remote switch in Settings. The server starts and the URL appears instantly.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <!-- Phone illustration -->
+        <div class="flex justify-center lg:justify-end">
+          <div class="relative">
+            <div class="absolute inset-0 bg-primary/15 blur-[80px] rounded-full scale-90 pointer-events-none"></div>
+            <!-- Laptop hint -->
+            <div class="absolute -left-16 top-1/2 -translate-y-1/2 flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-surface-container-high/60 border border-outline-variant/30 flex items-center justify-center shadow-lg">
+                <span class="material-symbols-outlined text-primary">laptop_mac</span>
+              </div>
+              <div class="flex flex-col gap-1">
+                <div class="w-8 h-0.5 bg-primary/50 rounded animate-pulse"></div>
+                <div class="w-6 h-0.5 bg-primary/30 rounded animate-pulse" style="animation-delay:150ms"></div>
+                <div class="w-8 h-0.5 bg-primary/50 rounded animate-pulse" style="animation-delay:300ms"></div>
+              </div>
+            </div>
+            <!-- Phone frame -->
+            <div class="relative w-56 bg-surface-container-lowest border border-outline-variant/40 rounded-[2.5rem] p-3 shadow-2xl glow-border">
+              <div class="w-16 h-1.5 bg-surface-container-high rounded-full mx-auto mb-3"></div>
+              <div class="bg-[#0e0e10] rounded-2xl overflow-hidden">
+                <!-- Status bar -->
+                <div class="flex items-center justify-between px-3 py-2 bg-surface-container border-b border-outline-variant/20">
+                  <span class="font-label text-[0.55rem] text-primary uppercase tracking-widest">vibeTerm remote</span>
+                  <div class="flex items-center gap-1.5">
+                    <div class="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+                    <span class="font-label text-[0.5rem] text-on-surface-variant">connected</span>
+                  </div>
+                </div>
+                <!-- Terminal content -->
+                <div class="p-3 space-y-1 font-label text-[0.6rem] leading-relaxed min-h-[180px]">
+                  <div><span class="text-primary">~/vibeTerm</span> <span class="text-outline text-[0.5rem]">main</span></div>
+                  <div class="text-on-surface-variant">$ pnpm dev</div>
+                  <div class="text-green-400/80">✓ VITE ready in 312ms</div>
+                  <div class="text-on-surface-variant mt-2">$ git status</div>
+                  <div class="text-on-surface-variant opacity-60">On branch main</div>
+                  <div class="text-on-surface-variant opacity-60">nothing to commit</div>
+                  <div class="mt-3"><span class="text-primary">~/vibeTerm</span> <span class="text-outline text-[0.5rem]">main</span></div>
+                  <div class="flex items-center gap-1 text-on-surface-variant">
+                    <span>$</span>
+                    <span class="w-1.5 h-3.5 bg-primary/80 animate-pulse inline-block rounded-sm"></span>
+                  </div>
+                </div>
+                <!-- Mobile toolbar -->
+                <div class="flex items-center justify-around px-3 py-2 border-t border-outline-variant/20 bg-surface-container">
+                  <span class="material-symbols-outlined text-on-surface-variant" style="font-size:1rem">search</span>
+                  <span class="material-symbols-outlined text-on-surface-variant" style="font-size:1rem">content_paste</span>
+                  <span class="material-symbols-outlined text-on-surface-variant" style="font-size:1rem">keyboard_tab</span>
+                  <span class="material-symbols-outlined text-on-surface-variant" style="font-size:1rem">keyboard_control_key</span>
+                </div>
+              </div>
+              <div class="w-14 h-1 bg-surface-container-high rounded-full mx-auto mt-3"></div>
+            </div>
           </div>
         </div>
       </div>
