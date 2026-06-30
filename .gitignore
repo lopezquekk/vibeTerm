@@ -23,3 +23,6 @@ src-tauri/gen/
 Thumbs.db
 # Patch build artifacts (keep source, ignore build output)
 patches/tao/target/
+
+# Superpowers docs (local only)
+docs/superpowers/
